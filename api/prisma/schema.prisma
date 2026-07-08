@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model CertificateConfig {
+  id                 String   @id @default("default")
+  brandName          String   @default("VENTRIX GLOBAL")
+  badgeText          String   @default("CERTIFIED")
+  presentedLabel     String   @default("THIS CERTIFICATE IS PRESENTED TO")
+  bodyTemplate       String?
+  verifyBaseUrl      String   @default("www.ventrix.global/certificate/")
+  recipientNameFont  String   @default("'Great Vibes', 'Segoe Script', cursive")
+  bodyFont           String   @default("'Montserrat', Helvetica, Arial, sans-serif")
+  recipientNameAlign String   @default("center")
+  bodyAlign          String   @default("left")
+  layoutJson         String?  @db.Text
+  updatedAt          DateTime @updatedAt
+}
