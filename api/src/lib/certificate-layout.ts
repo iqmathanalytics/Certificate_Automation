@@ -1,7 +1,5 @@
 export type TextAlign = "left" | "center" | "right" | "justify";
 export type VerticalAlign = "top" | "center" | "bottom";
-export type BoxAlignH = "left" | "center" | "right";
-export type BoxAlignV = "top" | "center" | "bottom";
 
 export type CertificateElementId = "recipient" | "body" | "credential";
 
@@ -21,13 +19,6 @@ export type CertificateElementStyle = {
 };
 
 export type CertificateLayoutConfig = Record<CertificateElementId, CertificateElementStyle>;
-
-export const ELEMENT_LABELS: Record<CertificateElementId, string> = {
-  recipient: "Recipient Name",
-  body: "Description",
-  credential: "Certificate Number",
-};
-
 
 export const DEFAULT_CERTIFICATE_LAYOUT: CertificateLayoutConfig = {
   recipient: {
@@ -111,69 +102,37 @@ export function parseLayoutConfig(layoutJson?: string | null): CertificateLayout
   }
 }
 
-export function serializeLayoutConfig(config: CertificateLayoutConfig): string {
-  return JSON.stringify(config);
-}
-
 export function verticalAlignToFlex(v: VerticalAlign): string {
   if (v === "center") return "center";
   if (v === "bottom") return "flex-end";
   return "flex-start";
 }
 
-/** Margins used when snapping a text box to the certificate edges. */
-export const BOX_ALIGN_MARGIN = 2;
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
+export function blockCss(style: CertificateElementStyle): string {
+  const justify = verticalAlignToFlex(style.verticalAlign);
+  return [
+    `left:${style.x}%`,
+    `top:${style.y}%`,
+    `width:${style.width}%`,
+    `height:${style.height}%`,
+    `display:flex`,
+    `flex-direction:column`,
+    `justify-content:${justify}`,
+  ].join(";");
 }
 
-function horizontalAlignX(width: number, align: BoxAlignH): number {
-  const innerLeft = BOX_ALIGN_MARGIN;
-  const innerRight = 100 - BOX_ALIGN_MARGIN;
-  const innerWidth = innerRight - innerLeft;
-
-  if (align === "left") return innerLeft;
-  if (align === "center") return innerLeft + (innerWidth - width) / 2;
-  return innerRight - width;
+export function textCss(style: CertificateElementStyle): string {
+  return [
+    `font-family:${style.fontFamily}`,
+    `font-size:${style.fontSize}px`,
+    `font-weight:${style.fontWeight}`,
+    `font-style:${style.fontStyle}`,
+    `text-align:${style.textAlign}`,
+    `color:${style.color}`,
+    `line-height:${style.lineHeight}`,
+    `width:100%`,
+  ].join(";");
 }
 
-function verticalAlignY(height: number, align: BoxAlignV): number {
-  const innerTop = BOX_ALIGN_MARGIN;
-  const innerBottom = 100 - BOX_ALIGN_MARGIN;
-  const innerHeight = innerBottom - innerTop;
-
-  if (align === "top") return innerTop;
-  if (align === "center") return innerTop + (innerHeight - height) / 2;
-  return innerBottom - height;
-}
-
-export function alignBoxHorizontal(style: CertificateElementStyle, align: BoxAlignH): CertificateElementStyle {
-  const x = horizontalAlignX(style.width, align);
-  return { ...style, x: clamp(x, 0, 100 - style.width) };
-}
-
-export function alignBoxVertical(style: CertificateElementStyle, align: BoxAlignV): CertificateElementStyle {
-  const y = verticalAlignY(style.height, align);
-  return { ...style, y: clamp(y, 0, 100 - style.height) };
-}
-
-const ALIGN_TOLERANCE = 1;
-
-export function detectBoxAlignH(style: CertificateElementStyle): BoxAlignH | null {
-  const positions: BoxAlignH[] = ["left", "center", "right"];
-  for (const align of positions) {
-    const x = clamp(horizontalAlignX(style.width, align), 0, 100 - style.width);
-    if (Math.abs(style.x - x) <= ALIGN_TOLERANCE) return align;
-  }
-  return null;
-}
-
-export function detectBoxAlignV(style: CertificateElementStyle): BoxAlignV | null {
-  const positions: BoxAlignV[] = ["top", "center", "bottom"];
-  for (const align of positions) {
-    const y = clamp(verticalAlignY(style.height, align), 0, 100 - style.height);
-    if (Math.abs(style.y - y) <= ALIGN_TOLERANCE) return align;
-  }
-  return null;
-}
+export const GOOGLE_FONTS_URL =
+  "https://fonts.googleapis.com/css2?family=Alice&family=Cinzel:wght@400;700&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Lora:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Open+Sans:ital,wght@0,400;0,600;0,700;1,400&family=Pacifico&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Poppins:ital,wght@0,400;0,600;0,700;1,400&family=Roboto:ital,wght@0,400;0,500;0,700;1,400&display=swap";

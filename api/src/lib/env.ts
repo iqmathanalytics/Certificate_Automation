@@ -6,4 +6,18 @@ export const env = {
   clientUrls: process.env.CLIENT_URLS
     ? process.env.CLIENT_URLS.split(",").map((s) => s.trim())
     : ["http://localhost:8080", "http://localhost:5173", "http://127.0.0.1:8080"],
+  publicSiteUrl: (process.env.PUBLIC_SITE_URL ?? "https://www.iqmath.in").replace(/\/$/, ""),
+  smtp: {
+    host: process.env.SMTP_HOST ?? "",
+    port: Number(process.env.SMTP_PORT ?? 587),
+    secure: process.env.SMTP_SECURE === "true",
+    user: process.env.SMTP_USER ?? "",
+    pass: process.env.SMTP_PASS ?? "",
+    fromName: process.env.SMTP_FROM_NAME ?? "IQmath Technologies",
+    fromEmail: process.env.SMTP_FROM_EMAIL ?? "certificates@iqmath.in",
+  },
 };
+
+export function verifyUrl(credentialId: string): string {
+  return `${env.publicSiteUrl}/certificate/${credentialId}`;
+}

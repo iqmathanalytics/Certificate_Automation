@@ -76,3 +76,8 @@ export const CERT_LAYOUT = {
   top: CERT_PAGE.height * 0.148,
   footerBottom: CERT_PAGE.height * 0.14,
 } as const;
+
+/** Display student names in uppercase on certificates. */
+export function formatRecipientName(name: string): string {
+  return name.trim().toUpperCase();
+}

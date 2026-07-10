@@ -9,15 +9,95 @@ datasource db {
 
 model CertificateConfig {
   id                 String   @id @default("default")
-  brandName          String   @default("VENTRIX GLOBAL")
-  badgeText          String   @default("CERTIFIED")
+  brandName          String   @default("IQMATH TECHNOLOGIES")
+  badgeText          String   @default("CERTIFICATE OF COMPLETION")
   presentedLabel     String   @default("THIS CERTIFICATE IS PRESENTED TO")
-  bodyTemplate       String?
-  verifyBaseUrl      String   @default("www.ventrix.global/certificate/")
+  bodyTemplate       String?  @db.Text
+  verifyBaseUrl      String   @default("www.iqmath.in/certificate/")
   recipientNameFont  String   @default("'Great Vibes', 'Segoe Script', cursive")
   bodyFont           String   @default("'Montserrat', Helvetica, Arial, sans-serif")
   recipientNameAlign String   @default("center")
-  bodyAlign          String   @default("left")
+  bodyAlign          String   @default("center")
   layoutJson         String?  @db.Text
   updatedAt          DateTime @updatedAt
+}
+
+model CertificateTemplate {
+  id                 String             @id @default(cuid())
+  name               String
+  isDefault          Boolean            @default(false)
+  bodyTemplate       String?            @db.Text
+  layoutJson         String?            @db.Text
+  recipientNameFont  String             @default("'Great Vibes', 'Segoe Script', cursive")
+  bodyFont           String             @default("'Montserrat', Helvetica, Arial, sans-serif")
+  recipientNameAlign String             @default("center")
+  bodyAlign          String             @default("center")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  batches            CertificateBatch[]
+}
+
+model CertificateIdSequence {
+  prefix     String @id
+  nextNumber Int    @default(1)
+}
+
+model CertificateBatch {
+  id           String              @id @default(cuid())
+  batchCode    String              @unique
+  title        String?
+  issuedDate   DateTime
+  description  String?             @db.Text
+  idPrefix     String?
+  templateId   String?
+  template     CertificateTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  status       BatchStatus         @default(PENDING)
+  totalCount   Int                 @default(0)
+  generated    Int                 @default(0)
+  emailed      Int                 @default(0)
+  failed       Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  certificates Certificate[]
+
+  @@index([templateId])
+}
+
+model Certificate {
+  id            String            @id @default(cuid())
+  batchId       String
+  batch         CertificateBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  recipientName String
+  email         String
+  credentialId  String            @unique
+  issuedDate    DateTime
+  pdfPath       String?
+  status        CertificateStatus @default(PENDING)
+  emailStatus   EmailStatus       @default(PENDING)
+  emailError    String?           @db.Text
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([batchId])
+  @@index([email])
+}
+
+enum BatchStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum CertificateStatus {
+  PENDING
+  GENERATED
+  FAILED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
 }

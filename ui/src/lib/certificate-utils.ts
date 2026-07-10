@@ -84,3 +84,8 @@ export function buildRecognitionParagraph(opts: {
     .map((s) => s.text)
     .join("");
 }
+
+/** Display student names in uppercase on certificates. */
+export function formatRecipientName(name: string): string {
+  return name.trim().toUpperCase();
+}

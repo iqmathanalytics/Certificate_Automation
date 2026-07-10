@@ -14,16 +14,16 @@ const uiPublicDir = path.join(__dirname, "../../../ui/public");
 const router = Router();
 
 const CERT_CONFIG_DEFAULTS = {
-  brandName: "VENTRIX GLOBAL",
-  badgeText: "CERTIFIED",
+  brandName: "IQMATH TECHNOLOGIES",
+  badgeText: "CERTIFICATE OF COMPLETION",
   presentedLabel: "THIS CERTIFICATE IS PRESENTED TO",
   bodyTemplate:
-    "In recognition of outstanding achievement in the [ Exam Title ] professional certification examination, with a final score of [ Score ]. Issued on [ Date ].",
-  verifyBaseUrl: "www.ventrix.global/certificate/",
+    "This is to certify that the above-named participant has successfully completed the training program conducted by IQmath Technologies, demonstrating dedication and proficiency in the subject matter.",
+  verifyBaseUrl: "www.iqmath.in/certificate/",
   recipientNameFont: "'Great Vibes', 'Segoe Script', cursive",
   bodyFont: "'Montserrat', Helvetica, Arial, sans-serif",
   recipientNameAlign: "center",
-  bodyAlign: "left",
+  bodyAlign: "center",
   layoutJson: null as string | null,
 };
 
@@ -40,16 +40,16 @@ router.get("/certificate-config", async (_req, res) => {
 router.put("/certificate-config", async (req, res) => {
   try {
     const schema = z.object({
-      brandName: z.string().min(1).max(100),
-      badgeText: z.string().min(1).max(100),
-      presentedLabel: z.string().min(1).max(200),
-      bodyTemplate: z.string().max(1000).nullable().optional(),
-      verifyBaseUrl: z.string().min(1).max(200),
+      brandName: z.string().min(1).max(100).optional(),
+      badgeText: z.string().min(1).max(100).optional(),
+      presentedLabel: z.string().min(1).max(200).optional(),
+      bodyTemplate: z.string().max(2000).nullable().optional(),
+      verifyBaseUrl: z.string().min(1).max(200).optional(),
       recipientNameFont: z.string().min(1).max(120).optional(),
       bodyFont: z.string().min(1).max(120).optional(),
       recipientNameAlign: z.enum(["left", "center", "right"]).optional(),
       bodyAlign: z.enum(["left", "center", "right"]).optional(),
-      layoutJson: z.string().max(5000).nullable().optional(),
+      layoutJson: z.string().max(12000).nullable().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
@@ -61,12 +61,16 @@ router.put("/certificate-config", async (req, res) => {
       bodyFont: parsed.data.bodyFont || CERT_CONFIG_DEFAULTS.bodyFont,
       recipientNameAlign: parsed.data.recipientNameAlign || CERT_CONFIG_DEFAULTS.recipientNameAlign,
       bodyAlign: parsed.data.bodyAlign || CERT_CONFIG_DEFAULTS.bodyAlign,
+      brandName: parsed.data.brandName || CERT_CONFIG_DEFAULTS.brandName,
+      badgeText: parsed.data.badgeText || CERT_CONFIG_DEFAULTS.badgeText,
+      presentedLabel: parsed.data.presentedLabel || CERT_CONFIG_DEFAULTS.presentedLabel,
+      verifyBaseUrl: parsed.data.verifyBaseUrl || CERT_CONFIG_DEFAULTS.verifyBaseUrl,
     };
 
     const config = await prisma.certificateConfig.upsert({
       where: { id: "default" },
       update: data,
-      create: { id: "default", ...data },
+      create: { id: "default", ...CERT_CONFIG_DEFAULTS, ...data },
     });
     res.json({ config });
   } catch (err) {
@@ -86,6 +90,7 @@ const certImageUpload = multer({
 router.post("/certificate-config/image", certImageUpload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+    if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
     const dest = path.join(assetsDir, "certificate-template.png");
     fs.writeFileSync(dest, req.file.buffer);
     if (fs.existsSync(uiPublicDir)) {
@@ -102,22 +107,20 @@ router.post("/certificate-config/preview-pdf", async (req, res) => {
   try {
     const schema = z.object({
       recipientName: z.string().min(1).max(120),
-      examTitle: z.string().min(1).max(200),
-      description: z.string().optional(),
-      credentialId: z.string().min(1).max(80),
+      credentialId: z.string().min(1).max(80).optional(),
       issuedOn: z.string(),
-      score: z.number().int().min(0).max(100),
+      bodyText: z.string().max(2000).optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid input" });
 
+    const config = await prisma.certificateConfig.findUnique({ where: { id: "default" } });
+
     const pdf = await generateCertificatePdf({
       recipientName: parsed.data.recipientName,
-      examTitle: parsed.data.examTitle,
-      description: parsed.data.description ?? "",
-      credentialId: parsed.data.credentialId,
+      credentialId: parsed.data.credentialId ?? "IQ-001-00001",
       issuedOn: new Date(parsed.data.issuedOn),
-      score: parsed.data.score,
+      bodyText: parsed.data.bodyText ?? config?.bodyTemplate ?? CERT_CONFIG_DEFAULTS.bodyTemplate,
     });
 
     res.setHeader("Content-Type", "application/pdf");

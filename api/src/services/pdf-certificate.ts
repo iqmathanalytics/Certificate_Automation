@@ -2,18 +2,17 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { launchHeadlessBrowser } from "../lib/puppeteer-launch.js";
-import { buildCertificateHtml, type CertificateHtmlInput } from "./certificate-html.js";
-import layout from "../config/certificate-layout.json" with { type: "json" };
+import { buildCertificateHtml } from "./certificate-html.js";
+import { resolveTemplateImagePath } from "../lib/template-assets.js";
+import { getDefaultTemplateId } from "../lib/seed-templates.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const assetsDir = path.join(__dirname, "../../assets");
-
-export type CertificatePdfInput = CertificateHtmlInput;
-
-function templatePath(): string | null {
-  const file = path.join(assetsDir, layout.templateFile);
-  return fs.existsSync(file) ? file : null;
-}
+export type CertificatePdfInput = {
+  templateId?: string | null;
+  recipientName: string;
+  credentialId: string;
+  issuedOn: Date;
+  bodyText: string;
+};
 
 async function generateViaPuppeteer(html: string): Promise<Buffer> {
   const browser = await launchHeadlessBrowser();
@@ -39,14 +38,15 @@ async function generateViaPuppeteer(html: string): Promise<Buffer> {
 }
 
 export async function generateCertificatePdf(input: CertificatePdfInput): Promise<Buffer> {
-  if (!templatePath()) {
-    throw new Error("Certificate template image not found");
+  const templateId = input.templateId ?? (await getDefaultTemplateId());
+  if (!resolveTemplateImagePath(templateId)) {
+    throw new Error("Certificate template image not found. Upload a template first.");
   }
 
-  const html = await buildCertificateHtml(input);
+  const html = await buildCertificateHtml({ ...input, templateId });
   return generateViaPuppeteer(html);
 }
 
-export function certificateTemplateConfigured(): boolean {
-  return templatePath() !== null;
+export function certificateTemplateConfigured(templateId?: string | null): boolean {
+  return Boolean(resolveTemplateImagePath(templateId));
 }

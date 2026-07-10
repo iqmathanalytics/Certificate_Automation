@@ -1,36 +1,22 @@
-import {
-  buildRecognitionBodySegments,
-  formatCertificateDate,
-  formatCertificateDateShort,
-} from "@/lib/certificate-utils";
-import { CERTIFICATE_HEADING_STYLES } from "@/components/certificate-heading";
-import { useRef, useState, type PointerEvent } from "react";
+import { useRef, useState, useEffect } from "react";
+import { EditableTextBox, textStyleProps } from "@/components/editable-text-box";
+import { GOOGLE_FONTS_URL } from "@/lib/certificate-fonts";
 import {
   DEFAULT_CERTIFICATE_LAYOUT,
-  type CertificateLayoutElementId,
-  type CertificateLayoutPosition,
-  type CertificateLayoutPositions,
+  parseLayoutConfig,
+  type CertificateElementId,
+  type CertificateElementStyle,
+  type CertificateLayoutConfig,
 } from "@/lib/certificate-layout";
+import { formatRecipientName } from "@/lib/certificate-utils";
 
 export type CertificatePreviewData = {
   recipientName: string;
-  examTitle: string;
-  description?: string;
   credentialId: string;
-  issuedOn: string;
-  score: number;
 };
 
 export type CertificateBrandingOverrides = {
-  brandName?: string;
-  badgeText?: string;
-  presentedLabel?: string;
   bodyTemplate?: string;
-  verifyBaseUrl?: string;
-  recipientNameFont?: string;
-  bodyFont?: string;
-  recipientNameAlign?: "left" | "center" | "right";
-  bodyAlign?: "left" | "center" | "right";
   templateImageUrl?: string;
 };
 
@@ -38,132 +24,62 @@ type Props = {
   data: CertificatePreviewData;
   className?: string;
   overrides?: CertificateBrandingOverrides;
-  /** When true, score/date/credential are shown as bracket placeholders */
-  previewMode?: boolean;
   editableLayout?: boolean;
-  layoutPositions?: Partial<CertificateLayoutPositions>;
-  onLayoutPositionsChange?: (positions: CertificateLayoutPositions) => void;
+  layoutConfig?: CertificateLayoutConfig;
+  selectedElement?: CertificateElementId | null;
+  onSelectElement?: (id: CertificateElementId | null) => void;
+  onLayoutConfigChange?: (config: CertificateLayoutConfig) => void;
 };
 
-const FONT_LINKS = `
-  @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap');
-  ${CERTIFICATE_HEADING_STYLES}
-`;
-
-const PREVIEW_SEGMENTS = [
-  { text: "In recognition of outstanding achievement in the " },
-  { text: "[ Exam Title ]", bold: true },
-  { text: " professional certification examination, with a final score of " },
-  { text: "[ Score ]", bold: true },
-  { text: ". Issued on " },
-  { text: "[ Date ]", bold: true },
-  { text: "." },
-];
-
-function mergeLayout(layout?: Partial<CertificateLayoutPositions>): CertificateLayoutPositions {
-  return {
-    ...DEFAULT_CERTIFICATE_LAYOUT,
-    ...layout,
-  };
-}
-
-function clampPercent(value: number) {
-  return Math.min(96, Math.max(0, value));
+function resolveLayout(config?: CertificateLayoutConfig): CertificateLayoutConfig {
+  if (!config) return { ...DEFAULT_CERTIFICATE_LAYOUT };
+  return parseLayoutConfig(JSON.stringify(config));
 }
 
 export function CertificatePreview({
   data,
   className = "",
   overrides = {},
-  previewMode = false,
   editableLayout = false,
-  layoutPositions,
-  onLayoutPositionsChange,
+  layoutConfig,
+  selectedElement = null,
+  onSelectElement,
+  onLayoutConfigChange,
 }: Props) {
-  const previewRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<{
-    id: CertificateLayoutElementId;
-    pointerId: number;
-    startX: number;
-    startY: number;
-    origin: CertificateLayoutPosition;
-  } | null>(null);
-  const verifyBase = overrides.verifyBaseUrl ?? "www.ventrix.global/certificate/";
-  const recipientNameFont = overrides.recipientNameFont ?? "'Great Vibes', 'Segoe Script', cursive";
-  const bodyFont = overrides.bodyFont ?? "'Montserrat', Helvetica, Arial, sans-serif";
-  const recipientNameAlign = overrides.recipientNameAlign ?? "center";
-  const bodyAlign = overrides.bodyAlign ?? "left";
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const layout = resolveLayout(layoutConfig);
   const imgSrc = overrides.templateImageUrl ?? "/certificate-template.png";
-  const bodyOverride = overrides.bodyTemplate;
-  const positions = mergeLayout(layoutPositions);
+  const bodyText = overrides.bodyTemplate ?? "";
 
-  const segments = (() => {
-    if (previewMode && bodyOverride) return [{ text: bodyOverride }];
-    if (previewMode) return PREVIEW_SEGMENTS;
-    return buildRecognitionBodySegments({
-      examTitle: data.examTitle,
-      description: data.description,
-      score: data.score,
-      issuedOn: data.issuedOn,
-    });
-  })();
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const update = () => setScale(el.getBoundingClientRect().width / 842);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
-  const updatePosition = (id: CertificateLayoutElementId, next: CertificateLayoutPosition) => {
-    onLayoutPositionsChange?.({
-      ...positions,
-      [id]: next,
-    });
+  const updateElement = (id: CertificateElementId, next: CertificateElementStyle) => {
+    const current = layoutConfig ?? DEFAULT_CERTIFICATE_LAYOUT;
+    onLayoutConfigChange?.({ ...current, [id]: next });
   };
 
-  const startDrag = (id: CertificateLayoutElementId, e: PointerEvent<HTMLDivElement>) => {
-    if (!editableLayout) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDrag({
-      id,
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      origin: positions[id],
-    });
+  const handleCanvasClick = () => {
+    if (editableLayout) onSelectElement?.(null);
   };
-
-  const moveDrag = (e: PointerEvent<HTMLDivElement>) => {
-    if (!drag || !previewRef.current || e.pointerId !== drag.pointerId) return;
-    const rect = previewRef.current.getBoundingClientRect();
-    const dx = ((e.clientX - drag.startX) / rect.width) * 100;
-    const dy = ((e.clientY - drag.startY) / rect.height) * 100;
-    updatePosition(drag.id, {
-      x: clampPercent(drag.origin.x + dx),
-      y: clampPercent(drag.origin.y + dy),
-    });
-  };
-
-  const stopDrag = () => setDrag(null);
-
-  const blockProps = (id: CertificateLayoutElementId, width = "64.5%") => ({
-    className: `absolute z-10 text-left ${editableLayout ? "cursor-move rounded-sm outline outline-1 outline-transparent hover:outline-primary/70" : ""}`,
-    style: {
-      left: `${positions[id].x}%`,
-      top: `${positions[id].y}%`,
-      width,
-      fontFamily: "'Montserrat', sans-serif",
-      userSelect: "none" as const,
-      touchAction: "none" as const,
-    },
-    onPointerDown: (e: PointerEvent<HTMLDivElement>) => startDrag(id, e),
-  });
 
   return (
     <div
-      ref={previewRef}
+      ref={canvasRef}
       className={`relative w-full overflow-hidden rounded-lg shadow-lg select-none ${className}`}
       style={{ aspectRatio: "842 / 595" }}
+      onClick={handleCanvasClick}
       onContextMenu={(e) => e.preventDefault()}
-      onPointerMove={moveDrag}
-      onPointerUp={stopDrag}
-      onPointerCancel={stopDrag}
     >
-      <style>{FONT_LINKS}</style>
+      <link rel="stylesheet" href={GOOGLE_FONTS_URL} />
 
       <img
         src={imgSrc}
@@ -172,70 +88,53 @@ export function CertificatePreview({
         draggable={false}
       />
 
-      <div {...blockProps("recipient", "64.5%")}>
+      <EditableTextBox
+        canvasRef={canvasRef}
+        editable={editableLayout}
+        selected={selectedElement === "recipient"}
+        style={layout.recipient}
+        onSelect={() => onSelectElement?.("recipient")}
+        onStyleChange={(next) => updateElement("recipient", next)}
+      >
+        <p style={textStyleProps(layout.recipient, scale)} className="w-full">
+          {formatRecipientName(data.recipientName)}
+        </p>
+      </EditableTextBox>
+
+      <EditableTextBox
+        canvasRef={canvasRef}
+        editable={editableLayout}
+        selected={selectedElement === "body"}
+        style={layout.body}
+        onSelect={() => onSelectElement?.("body")}
+        onStyleChange={(next) => updateElement("body", next)}
+      >
         <p
-          className="leading-[1.05] text-[#C9A227]"
-          style={{
-            fontFamily: recipientNameFont,
-            fontSize: "clamp(38px, 6.8vw, 58px)",
-            textAlign: recipientNameAlign,
-          }}
+          style={{ ...textStyleProps(layout.body, scale), flex: 1 }}
+          className="w-full whitespace-pre-wrap"
         >
-          {data.recipientName}
+          {bodyText}
         </p>
-        <div className="mt-2 h-[2px] w-full bg-[#B8860B]" aria-hidden />
-      </div>
+      </EditableTextBox>
 
-      <div {...blockProps("body", "64.5%")}>
-        <p
-          className="font-normal leading-[1.65] text-[#252525]"
-          style={{ fontFamily: bodyFont, fontSize: "clamp(11px, 1.55vw, 13.5px)", textAlign: bodyAlign }}
+      <EditableTextBox
+        canvasRef={canvasRef}
+        editable={editableLayout}
+        selected={selectedElement === "credential"}
+        style={layout.credential}
+        onSelect={() => onSelectElement?.("credential")}
+        onStyleChange={(next) => updateElement("credential", next)}
+      >
+        <div
+          className="flex w-full flex-wrap items-baseline gap-x-2 overflow-hidden"
+          style={textStyleProps(layout.credential, scale)}
         >
-          {segments.map((seg, i) =>
-            seg.bold ? (
-              <strong key={i} className="font-bold text-[#141414]">
-                {seg.text}
-              </strong>
-            ) : (
-              <span key={i}>{seg.text}</span>
-            ),
-          )}
-        </p>
-      </div>
-
-      <div {...blockProps("credential", "64.5%")}>
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          <span
-            className="font-bold uppercase tracking-wide"
-            style={{ fontSize: "clamp(9px, 1.1vw, 10px)" }}
-          >
-            Credential ID:
+          <span style={{ fontWeight: 700, fontSize: `${(layout.credential.fontSize - 1) * scale}px` }}>
+            Certificate No:
           </span>
-          <span className="font-medium text-[#252525]" style={{ fontSize: "clamp(10px, 1.25vw, 11.5px)" }}>
-            {data.credentialId}
-          </span>
+          <span>{data.credentialId}</span>
         </div>
-      </div>
-
-      <div {...blockProps("issued", "64.5%")}>
-        <div className="flex flex-wrap items-baseline gap-x-3">
-          <span
-            className="font-bold uppercase tracking-wide"
-            style={{ fontSize: "clamp(9px, 1.1vw, 10px)" }}
-          >
-            Issued date:
-          </span>
-          <span className="font-medium text-[#252525]" style={{ fontSize: "clamp(10px, 1.25vw, 11.5px)" }}>
-            {previewMode ? "[ Date ]" : formatCertificateDate(data.issuedOn)}
-          </span>
-        </div>
-      </div>
-
-      <div {...blockProps("verify", "64.5%")}>
-        <p className="text-[#5C5C5C]" style={{ fontSize: "clamp(8px, 0.95vw, 8.5px)" }}>
-          Verify at {verifyBase}{data.credentialId} · {previewMode ? "[ Date ]" : formatCertificateDateShort(data.issuedOn)}
-        </p>
-      </div>
+      </EditableTextBox>
     </div>
   );
 }

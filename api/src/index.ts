@@ -3,6 +3,10 @@ import cors from "cors";
 import { env } from "./lib/env.js";
 import { connectDatabase } from "./lib/prisma.js";
 import certificateRoutes from "./routes/certificate-config.js";
+import batchRoutes from "./routes/batches.js";
+import templateRoutes from "./routes/templates.js";
+import emailRoutes from "./routes/email.js";
+import { seedDefaultTemplate } from "./lib/seed-templates.js";
 
 const app = express();
 
@@ -25,6 +29,9 @@ app.use(
 
 app.use(express.json({ limit: "2mb" }));
 app.use("/api", certificateRoutes);
+app.use("/api", batchRoutes);
+app.use("/api", templateRoutes);
+app.use("/api", emailRoutes);
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
@@ -32,6 +39,7 @@ app.get("/health", (_req, res) => {
 
 async function main() {
   await connectDatabase();
+  await seedDefaultTemplate();
   app.listen(env.port, () => {
     console.log(`Certificate API running at http://localhost:${env.port}`);
   });
