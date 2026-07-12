@@ -2,7 +2,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { prisma } from "../lib/prisma.js";
-import { generateCertificatePdf } from "./pdf-certificate.js";
+import { generateCertificatePdfWithBrowser } from "./pdf-certificate.js";
+import { launchHeadlessBrowser } from "../lib/puppeteer-launch.js";
 import { sendCertificateEmail, emailConfigured } from "./email.js";
 import { getDefaultTemplateId } from "../lib/seed-templates.js";
 
@@ -37,72 +38,77 @@ export async function processBatch(batchId: string, sendEmails: boolean): Promis
   let emailed = 0;
   let failed = 0;
 
-  for (const cert of batch.certificates) {
-    try {
-      const pdf = await generateCertificatePdf({
-        templateId,
-        recipientName: cert.recipientName,
-        credentialId: cert.credentialId,
-        issuedOn: cert.issuedDate,
-        bodyText: description,
-      });
+  const browser = await launchHeadlessBrowser();
+  try {
+    for (const cert of batch.certificates) {
+      try {
+        const pdf = await generateCertificatePdfWithBrowser(browser, {
+          templateId,
+          recipientName: cert.recipientName,
+          credentialId: cert.credentialId,
+          issuedOn: cert.issuedDate,
+          bodyText: description,
+        });
 
-      const pdfPath = path.join(generatedDir, `${cert.credentialId}.pdf`);
-      fs.writeFileSync(pdfPath, pdf);
+        const pdfPath = path.join(generatedDir, `${cert.credentialId}.pdf`);
+        fs.writeFileSync(pdfPath, pdf);
 
-      await prisma.certificate.update({
-        where: { id: cert.id },
-        data: { status: "GENERATED", pdfPath },
-      });
-      generated++;
+        await prisma.certificate.update({
+          where: { id: cert.id },
+          data: { status: "GENERATED", pdfPath },
+        });
+        generated++;
 
-      if (sendEmails) {
-        if (!emailConfigured()) {
-          await prisma.certificate.update({
-            where: { id: cert.id },
-            data: { emailStatus: "SKIPPED", emailError: "SMTP not configured" },
-          });
-        } else {
-          try {
-            await sendCertificateEmail({
-              to: cert.email,
-              recipientName: cert.recipientName,
-              credentialId: cert.credentialId,
-              issuedDate: cert.issuedDate,
-              pdfPath,
-            });
+        if (sendEmails) {
+          if (!emailConfigured()) {
             await prisma.certificate.update({
               where: { id: cert.id },
-              data: { emailStatus: "SENT", emailError: null },
+              data: { emailStatus: "SKIPPED", emailError: "Email not configured" },
             });
-            emailed++;
-          } catch (emailErr) {
-            const msg = emailErr instanceof Error ? emailErr.message : String(emailErr);
-            await prisma.certificate.update({
-              where: { id: cert.id },
-              data: { emailStatus: "FAILED", emailError: msg },
-            });
-            failed++;
+          } else {
+            try {
+              await sendCertificateEmail({
+                to: cert.email,
+                recipientName: cert.recipientName,
+                credentialId: cert.credentialId,
+                issuedDate: cert.issuedDate,
+                pdfPath,
+              });
+              await prisma.certificate.update({
+                where: { id: cert.id },
+                data: { emailStatus: "SENT", emailError: null },
+              });
+              emailed++;
+            } catch (emailErr) {
+              const msg = emailErr instanceof Error ? emailErr.message : String(emailErr);
+              await prisma.certificate.update({
+                where: { id: cert.id },
+                data: { emailStatus: "FAILED", emailError: msg },
+              });
+              failed++;
+            }
           }
         }
-      }
 
-      await prisma.certificateBatch.update({
-        where: { id: batchId },
-        data: { generated, emailed, failed },
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await prisma.certificate.update({
-        where: { id: cert.id },
-        data: { status: "FAILED", emailError: msg },
-      });
-      failed++;
-      await prisma.certificateBatch.update({
-        where: { id: batchId },
-        data: { failed },
-      });
+        await prisma.certificateBatch.update({
+          where: { id: batchId },
+          data: { generated, emailed, failed },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await prisma.certificate.update({
+          where: { id: cert.id },
+          data: { status: "FAILED", emailError: msg },
+        });
+        failed++;
+        await prisma.certificateBatch.update({
+          where: { id: batchId },
+          data: { failed },
+        });
+      }
     }
+  } finally {
+    await browser.close().catch(() => undefined);
   }
 
   const finalStatus = failed === batch.certificates.length ? "FAILED" : "COMPLETED";
@@ -121,34 +127,69 @@ export async function sendBatchEmails(batchId: string): Promise<void> {
   if (!batch) throw new Error("Batch not found");
   if (!emailConfigured()) throw new Error("Email is not configured");
 
-  let emailed = batch.emailed;
-  let failed = batch.failed;
+  const templateId = batch.templateId ?? (await getDefaultTemplateId());
+  const template = await prisma.certificateTemplate.findUnique({ where: { id: templateId } });
+  const description = batch.description ?? template?.bodyTemplate ?? "";
 
-  for (const cert of batch.certificates) {
-    if (cert.emailStatus === "SENT" || !cert.pdfPath) continue;
+  ensureGeneratedDir();
 
-    try {
-      await sendCertificateEmail({
-        to: cert.email,
-        recipientName: cert.recipientName,
-        credentialId: cert.credentialId,
-        issuedDate: cert.issuedDate,
-        pdfPath: cert.pdfPath,
-      });
-      await prisma.certificate.update({
-        where: { id: cert.id },
-        data: { emailStatus: "SENT", emailError: null },
-      });
-      emailed++;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await prisma.certificate.update({
-        where: { id: cert.id },
-        data: { emailStatus: "FAILED", emailError: msg },
-      });
-      failed++;
+  let emailed = 0;
+  let failed = 0;
+
+  const needsRegen = batch.certificates.some(
+    (c) => c.emailStatus !== "SENT" && (!c.pdfPath || !fs.existsSync(c.pdfPath)),
+  );
+
+  const browser = needsRegen ? await launchHeadlessBrowser() : null;
+  try {
+    for (const cert of batch.certificates) {
+      if (cert.emailStatus === "SENT") continue;
+
+      try {
+        let pdfPath = cert.pdfPath;
+        if (!pdfPath || !fs.existsSync(pdfPath)) {
+          if (!browser) throw new Error(`PDF not found: ${pdfPath ?? cert.credentialId}`);
+          const pdf = await generateCertificatePdfWithBrowser(browser, {
+            templateId,
+            recipientName: cert.recipientName,
+            credentialId: cert.credentialId,
+            issuedOn: cert.issuedDate,
+            bodyText: description,
+          });
+          pdfPath = path.join(generatedDir, `${cert.credentialId}.pdf`);
+          fs.writeFileSync(pdfPath, pdf);
+          await prisma.certificate.update({
+            where: { id: cert.id },
+            data: { pdfPath },
+          });
+        }
+
+        await sendCertificateEmail({
+          to: cert.email,
+          recipientName: cert.recipientName,
+          credentialId: cert.credentialId,
+          issuedDate: cert.issuedDate,
+          pdfPath,
+        });
+        await prisma.certificate.update({
+          where: { id: cert.id },
+          data: { emailStatus: "SENT", emailError: null },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await prisma.certificate.update({
+          where: { id: cert.id },
+          data: { emailStatus: "FAILED", emailError: msg },
+        });
+      }
     }
+  } finally {
+    if (browser) await browser.close().catch(() => undefined);
   }
+
+  const refreshed = await prisma.certificate.findMany({ where: { batchId } });
+  emailed = refreshed.filter((c) => c.emailStatus === "SENT").length;
+  failed = refreshed.filter((c) => c.emailStatus === "FAILED").length;
 
   await prisma.certificateBatch.update({
     where: { id: batchId },

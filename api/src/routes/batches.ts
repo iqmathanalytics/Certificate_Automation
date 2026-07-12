@@ -228,7 +228,9 @@ router.post("/batches", requireAuth, csvUpload.single("csv"), async (req, res) =
 router.post("/batches/:id/send-emails", requireAuth, async (req, res) => {
   try {
     if (!emailConfigured()) {
-      return res.status(400).json({ error: "Email is not configured. Set SMTP variables in .env" });
+      return res.status(400).json({
+        error: "Email is not configured. Set RESEND_API_KEY (Render) or SMTP_* in .env",
+      });
     }
     const batch = await prisma.certificateBatch.findUnique({ where: { id: req.params.id as string } });
     if (!batch) return res.status(404).json({ error: "Batch not found" });

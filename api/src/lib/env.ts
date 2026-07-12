@@ -10,6 +10,8 @@ export const env = {
   authSecret: process.env.AUTH_SECRET ?? "dev-change-me-in-production",
   adminEmail: process.env.ADMIN_EMAIL ?? "contact@iqmath.in",
   adminPassword: process.env.ADMIN_PASSWORD ?? "",
+  /** Resend HTTPS API — preferred on Render Free (SMTP ports are blocked). */
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
   smtp: {
     host: process.env.SMTP_HOST ?? "",
     port: Number(process.env.SMTP_PORT ?? 587),

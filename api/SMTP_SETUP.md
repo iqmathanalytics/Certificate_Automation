@@ -1,8 +1,38 @@
-# SMTP Setup for Certificate Emails (IQmath)
+# Email Setup for Certificate Emails (IQmath)
 
-Certificate emails are sent from the API using **Nodemailer** and your SMTP provider. Configure these variables in `api/.env`, then restart the API server.
+Certificates are emailed from the API. **On Render Free, use Resend** — free web services [block outbound SMTP](https://render.com/docs/free) on ports 25 / 465 / 587, so Gmail SMTP will hang with `Connection timeout`.
 
-## 1. Edit `api/.env`
+| Environment | Recommended |
+|-------------|-------------|
+| **Render (production)** | `RESEND_API_KEY` (HTTPS API) |
+| **Local development** | Resend **or** Gmail SMTP |
+
+---
+
+## A. Resend (production on Render Free)
+
+1. Create an account at [resend.com](https://resend.com).
+2. **Domains** → add `iqmath.in` and add the DNS records Resend shows (SPF/DKIM).
+3. **API Keys** → create a key → copy `re_...`.
+4. Set on Render (and optionally in `api/.env`):
+
+```env
+RESEND_API_KEY=re_xxxxxxxx
+SMTP_FROM_NAME=IQmath Technologies
+SMTP_FROM_EMAIL=contact@iqmath.in
+PUBLIC_SITE_URL=https://www.iqmath.in
+```
+
+> Until the domain is verified, you can test with `SMTP_FROM_EMAIL=onboarding@resend.dev` (Resend’s sandbox sender).
+
+5. Redeploy / restart the API.
+6. Issue Certificates → **Email test** → send to yourself.
+
+When `RESEND_API_KEY` is set, the API uses Resend and **ignores** SMTP host settings.
+
+---
+
+## B. Gmail SMTP (local / paid Render only)
 
 ```env
 SMTP_HOST=smtp.gmail.com
@@ -17,86 +47,48 @@ PUBLIC_SITE_URL=https://www.iqmath.in
 
 | Variable | Description |
 |----------|-------------|
-| `SMTP_HOST` | Your mail provider's SMTP server |
+| `SMTP_HOST` | Mail provider SMTP server |
 | `SMTP_PORT` | Usually `587` (STARTTLS) or `465` (SSL — set `SMTP_SECURE=true`) |
 | `SMTP_SECURE` | `true` for port 465, `false` for 587 |
-| `SMTP_USER` | SMTP login (usually full email address) |
-| `SMTP_PASS` | Mailbox password or app-specific password |
-| `SMTP_FROM_EMAIL` | "From" address shown to recipients |
-| `SMTP_FROM_NAME` | Display name (e.g. IQmath Technologies) |
-| `PUBLIC_SITE_URL` | Used in verify links inside emails |
+| `SMTP_USER` | SMTP login (usually full email) |
+| `SMTP_PASS` | App-specific password |
+| `SMTP_FROM_EMAIL` | "From" address |
+| `SMTP_FROM_NAME` | Display name |
+| `PUBLIC_SITE_URL` | Used in verify links |
 
-## 2. Gmail / Google Workspace (`contact@iqmath.in`)
+### Gmail / Google Workspace (`contact@iqmath.in`)
 
-1. Sign in to the Google account for **contact@iqmath.in** (Google Workspace admin or mailbox owner).
-2. Turn on **2-Step Verification** for that account:
-   - [Google Account → Security](https://myaccount.google.com/security)
-3. Create an **App Password**:
-   - Security → 2-Step Verification → App passwords
-   - App: **Mail**, Device: **Other** (e.g. "Certificate Automation")
-   - Copy the 16-character password (no spaces)
-4. Paste it into `SMTP_PASS` in `api/.env` (not your normal Gmail password).
-5. Settings:
-   - Host: `smtp.gmail.com`
-   - Port: `587`, `SMTP_SECURE=false`
-   - User: `contact@iqmath.in`
-   - From: `contact@iqmath.in`
+1. Enable **2-Step Verification**.
+2. Create an **App Password** (Mail → Other).
+3. Paste into `SMTP_PASS` (not your normal password).
 
-### Other providers (optional)
+### Other providers
 
-#### Zoho Mail
+- Zoho: `smtp.zoho.in` / `smtp.zoho.com`, port `587`
+- Microsoft 365: `smtp.office365.com`, port `587`
 
-- Host: `smtp.zoho.in` or `smtp.zoho.com`
-- Port: `587`, `SMTP_SECURE=false`
+---
 
-#### Microsoft 365 / Outlook
+## Test
 
-- Host: `smtp.office365.com`
-- Port: `587`, `SMTP_SECURE=false`
-
-## 3. DNS (deliverability)
-
-For `contact@iqmath.in` to reach inboxes reliably, ensure your domain has:
-
-- **SPF** — authorizes your SMTP server to send for `iqmath.in`
-- **DKIM** — signs outgoing mail (configure in Zoho/Google admin)
-- **DMARC** — policy record (optional but recommended)
-
-Your email host's admin panel usually provides the exact DNS records.
-
-## 4. Restart the API
+1. Open **Issue Certificates**.
+2. **Email test** panel → enter your address → **Test**.
+3. Or:
 
 ```bash
-cd api
-npm run dev
-```
-
-## 5. Test from the app
-
-1. Open **Issue Certificates** in the UI.
-2. In the **SMTP / Email Test** panel, enter your email and click **Test**.
-3. Or call the API directly:
-
-```bash
-curl -X POST http://localhost:3001/api/email/test \
+curl -X POST http://localhost:3002/api/email/test \
+  -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"to\":\"you@example.com\"}"
+  -d '{"to":"you@example.com"}'
 ```
 
-## 6. Issue certificates with email
-
-1. Configure SMTP (steps above).
-2. On **Issue Certificates**, check **Send certificate emails automatically**.
-3. Upload CSV and generate — each student receives a PDF attachment and verify link.
+---
 
 ## Troubleshooting
 
-| Issue | Fix |
+| Error | Fix |
 |-------|-----|
-| `SMTP not configured` | Set `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM_EMAIL` in `.env` |
-| Authentication failed | Wrong password; use app password if 2FA is enabled |
-| Connection timeout | Firewall blocking port 587/465; try alternate port |
-| Emails in spam | Add SPF/DKIM in Google Workspace; send from `contact@iqmath.in` |
-| Verify link wrong | Set `PUBLIC_SITE_URL=https://www.iqmath.in` |
-
-**Security:** Never commit `api/.env` to git. Use production secrets only on the server.
+| `Connection timeout` on Render | Stop using Gmail SMTP; set `RESEND_API_KEY` |
+| `Resend failed (403)` / domain | Verify `iqmath.in` in Resend, or use `onboarding@resend.dev` for tests |
+| `PDF not found` on resend | Instance restarted (ephemeral disk); use **Resend Emails** — API regenerates missing PDFs |
+| Local SMTP auth failed | App Password + 2FA; no spaces in `SMTP_PASS` |

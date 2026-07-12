@@ -2,20 +2,36 @@ import nodemailer from "nodemailer";
 import fs from "fs";
 import { env, verifyUrl } from "../lib/env.js";
 
+function smtpConfigured(): boolean {
+  return Boolean(env.smtp.host && env.smtp.user && env.smtp.pass && env.smtp.fromEmail);
+}
+
+function resendConfigured(): boolean {
+  return Boolean(env.resendApiKey && env.smtp.fromEmail);
+}
+
 function transporter() {
-  if (!env.smtp.host || !env.smtp.user) {
-    return null;
-  }
+  if (!smtpConfigured()) return null;
   return nodemailer.createTransport({
     host: env.smtp.host,
     port: env.smtp.port,
     secure: env.smtp.secure,
     auth: { user: env.smtp.user, pass: env.smtp.pass },
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
   });
 }
 
+/** True if Resend API key or SMTP credentials are set. */
 export function emailConfigured(): boolean {
-  return Boolean(env.smtp.host && env.smtp.user && env.smtp.pass && env.smtp.fromEmail);
+  return resendConfigured() || smtpConfigured();
+}
+
+export function emailProvider(): "resend" | "smtp" | "none" {
+  if (resendConfigured()) return "resend";
+  if (smtpConfigured()) return "smtp";
+  return "none";
 }
 
 export type CertificateEmailInput = {
@@ -28,6 +44,10 @@ export type CertificateEmailInput = {
 
 function escapeHtml(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function fromHeader(): string {
+  return `${env.smtp.fromName} <${env.smtp.fromEmail}>`;
 }
 
 function buildEmailHtml(input: CertificateEmailInput): string {
@@ -88,44 +108,121 @@ function buildEmailHtml(input: CertificateEmailInput): string {
 </html>`;
 }
 
-export async function sendCertificateEmail(input: CertificateEmailInput): Promise<void> {
+function buildEmailText(input: CertificateEmailInput): string {
+  const verify = verifyUrl(input.credentialId);
+  return `Dear ${input.recipientName},\n\nCongratulations! Your certificate (${input.credentialId}) is attached.\n\nVerify online: ${verify}\n\nIQmath Technologies\nwww.iqmath.in`;
+}
+
+async function sendViaResend(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  attachments?: { filename: string; content: Buffer }[];
+}): Promise<void> {
+  const body: Record<string, unknown> = {
+    from: fromHeader(),
+    to: [opts.to],
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
+  };
+
+  if (opts.attachments?.length) {
+    body.attachments = opts.attachments.map((a) => ({
+      filename: a.filename,
+      content: a.content.toString("base64"),
+    }));
+  }
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    let detail = errBody;
+    try {
+      const parsed = JSON.parse(errBody) as { message?: string };
+      if (parsed.message) detail = parsed.message;
+    } catch {
+      /* keep raw */
+    }
+    throw new Error(`Resend failed (${res.status}): ${detail || res.statusText}`);
+  }
+}
+
+async function sendViaSmtp(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
+}): Promise<void> {
   const transport = transporter();
   if (!transport) {
-    throw new Error("Email is not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM_EMAIL in .env");
+    throw new Error("SMTP is not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM_EMAIL");
+  }
+
+  await transport.sendMail({
+    from: `"${env.smtp.fromName}" <${env.smtp.fromEmail}>`,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
+    attachments: opts.attachments?.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      contentType: a.contentType,
+    })),
+  });
+}
+
+export async function sendCertificateEmail(input: CertificateEmailInput): Promise<void> {
+  if (!emailConfigured()) {
+    throw new Error(
+      "Email is not configured. Set RESEND_API_KEY (recommended on Render) or SMTP_* in .env",
+    );
   }
   if (!fs.existsSync(input.pdfPath)) {
     throw new Error(`PDF not found: ${input.pdfPath}`);
   }
 
-  const verify = verifyUrl(input.credentialId);
+  const pdf = fs.readFileSync(input.pdfPath);
+  const subject = `Your Certificate from IQmath Technologies — ${input.credentialId}`;
+  const html = buildEmailHtml(input);
+  const text = buildEmailText(input);
+  const attachments = [
+    { filename: `${input.credentialId}.pdf`, content: pdf, contentType: "application/pdf" },
+  ];
 
-  await transport.sendMail({
-    from: `"${env.smtp.fromName}" <${env.smtp.fromEmail}>`,
-    to: input.to,
-    subject: `Your Certificate from IQmath Technologies — ${input.credentialId}`,
-    html: buildEmailHtml(input),
-    text: `Dear ${input.recipientName},\n\nCongratulations! Your certificate (${input.credentialId}) is attached.\n\nVerify online: ${verify}\n\nIQmath Technologies\nwww.iqmath.in`,
-    attachments: [
-      {
-        filename: `${input.credentialId}.pdf`,
-        content: fs.readFileSync(input.pdfPath),
-        contentType: "application/pdf",
-      },
-    ],
-  });
+  if (resendConfigured()) {
+    await sendViaResend({ to: input.to, subject, html, text, attachments });
+    return;
+  }
+
+  await sendViaSmtp({ to: input.to, subject, html, text, attachments });
 }
 
 export async function sendTestEmail(to: string): Promise<void> {
-  const transport = transporter();
-  if (!transport) {
+  if (!emailConfigured()) {
     throw new Error("Email is not configured");
   }
 
-  await transport.sendMail({
-    from: `"${env.smtp.fromName}" <${env.smtp.fromEmail}>`,
-    to,
-    subject: "IQmath Certificate Automation — SMTP Test",
-    html: `<p>SMTP is configured correctly for <strong>IQmath Technologies</strong> certificate automation.</p><p>From: ${escapeHtml(env.smtp.fromEmail)}</p>`,
-    text: "SMTP is configured correctly for IQmath Technologies certificate automation.",
-  });
+  const provider = emailProvider();
+  const subject = "IQmath Certificate Automation — Email Test";
+  const html = `<p>Email is configured correctly for <strong>IQmath Technologies</strong> certificate automation.</p><p>Provider: <strong>${provider}</strong></p><p>From: ${escapeHtml(env.smtp.fromEmail)}</p>`;
+  const text = `Email is configured correctly for IQmath Technologies (${provider}). From: ${env.smtp.fromEmail}`;
+
+  if (resendConfigured()) {
+    await sendViaResend({ to, subject, html, text });
+    return;
+  }
+
+  await sendViaSmtp({ to, subject, html, text });
 }

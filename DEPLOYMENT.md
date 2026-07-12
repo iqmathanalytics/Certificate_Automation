@@ -59,14 +59,13 @@ ADMIN_EMAIL=contact@iqmath.in
 ADMIN_PASSWORD=<strong-password>
 AUTH_SECRET=<long-random-32+-chars>
 
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=contact@iqmath.in
-SMTP_PASS=<gmail-app-password>
+# Resend (required on Render Free — SMTP ports 25/465/587 are blocked)
+RESEND_API_KEY=re_xxxxxxxx
 SMTP_FROM_NAME=IQmath Technologies
 SMTP_FROM_EMAIL=contact@iqmath.in
 ```
+
+> **Do not rely on Gmail SMTP on Render Free** — you will get `Connection timeout`. See [`api/SMTP_SETUP.md`](./api/SMTP_SETUP.md).
 
 > Render sets `PORT` automatically on some plans. If the service fails to bind, use `PORT` from Render’s docs / logs (often `10000`). Your app already reads `process.env.PORT`.
 
@@ -149,8 +148,9 @@ Path-based (`www.iqmath.in/certificates`) is what the Worker above enables.
 2. Template Editor → confirm background image loads
 3. Issue Certificates → upload a small CSV (without email first)
 4. Open verify URL from the batch
-5. SMTP test from Issue page
+5. Email test from Issue page (Resend)
 6. Issue again with **Send emails** checked
+7. If a prior batch failed email, use **Resend Emails** (regenerates missing PDFs if needed)
 
 ### CORS
 
@@ -188,5 +188,5 @@ Both platforms redeploy on every push to `main` (GitHub connection).
 | Login `ERR_CONNECTION_REFUSED` / CORS | Wrong `VITE_API_URL` or missing origin in `CLIENT_URLS` |
 | `Can't reach database` | Wrong `DATABASE_URL`; use Render **Internal** URL from same region |
 | PDF / Puppeteer crash | Upgrade Render plan; confirm `NODE_ENV=production` |
-| Emails fail | Gmail App Password in `SMTP_PASS`; 2FA enabled on Google account |
+| Emails fail / `Connection timeout` | Set `RESEND_API_KEY` on Render (SMTP is blocked on Free). Verify domain in Resend. See `api/SMTP_SETUP.md` |
 | Image 401 | Template image route must stay public (already fixed in latest API) |

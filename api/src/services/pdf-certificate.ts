@@ -1,6 +1,4 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import type { Browser } from "puppeteer-core";
 import { launchHeadlessBrowser } from "../lib/puppeteer-launch.js";
 import { buildCertificateHtml } from "./certificate-html.js";
 import { resolveTemplateImagePath } from "../lib/template-assets.js";
@@ -14,14 +12,25 @@ export type CertificatePdfInput = {
   bodyText: string;
 };
 
-async function generateViaPuppeteer(html: string): Promise<Buffer> {
-  const browser = await launchHeadlessBrowser();
+/** Generate one PDF using an already-open browser (caller owns browser lifecycle). */
+export async function generateCertificatePdfWithBrowser(
+  browser: Browser,
+  input: CertificatePdfInput,
+): Promise<Buffer> {
+  const templateId = input.templateId ?? (await getDefaultTemplateId());
+  if (!resolveTemplateImagePath(templateId)) {
+    throw new Error("Certificate template image not found. Upload a template first.");
+  }
 
+  const html = await buildCertificateHtml({ ...input, templateId });
+  const page = await browser.newPage();
   try {
-    const page = await browser.newPage();
     await page.setViewport({ width: 842, height: 595, deviceScaleFactor: 2 });
-    await page.setContent(html, { waitUntil: "load", timeout: 45_000 });
-    await page.evaluateHandle("document.fonts.ready");
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await Promise.race([
+      page.evaluateHandle("document.fonts.ready"),
+      new Promise((r) => setTimeout(r, 5_000)),
+    ]);
 
     const pdf = await page.pdf({
       width: "842px",
@@ -33,18 +42,18 @@ async function generateViaPuppeteer(html: string): Promise<Buffer> {
 
     return Buffer.from(pdf);
   } finally {
-    await browser.close();
+    await page.close().catch(() => undefined);
   }
 }
 
+/** Single-shot PDF (launches and closes Chromium). Prefer WithBrowser for batches. */
 export async function generateCertificatePdf(input: CertificatePdfInput): Promise<Buffer> {
-  const templateId = input.templateId ?? (await getDefaultTemplateId());
-  if (!resolveTemplateImagePath(templateId)) {
-    throw new Error("Certificate template image not found. Upload a template first.");
+  const browser = await launchHeadlessBrowser();
+  try {
+    return await generateCertificatePdfWithBrowser(browser, input);
+  } finally {
+    await browser.close().catch(() => undefined);
   }
-
-  const html = await buildCertificateHtml({ ...input, templateId });
-  return generateViaPuppeteer(html);
 }
 
 export function certificateTemplateConfigured(templateId?: string | null): boolean {

@@ -237,9 +237,9 @@ export function BulkIssuancePage() {
 
       {!emailConfigured && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Email is not configured yet. Certificates will still be generated, but emails won't be sent until SMTP
-          settings are added to <code className="rounded bg-amber-100 px-1">api/.env</code>. See{" "}
-          <code className="rounded bg-amber-100 px-1">api/SMTP_SETUP.md</code> for setup steps.
+          Email is not configured yet. Certificates will still be generated, but emails won&apos;t be sent until
+          you set <code className="rounded bg-amber-100 px-1">RESEND_API_KEY</code> on Render (or SMTP locally).
+          See <code className="rounded bg-amber-100 px-1">api/SMTP_SETUP.md</code>.
         </div>
       )}
 
@@ -408,14 +408,15 @@ export function BulkIssuancePage() {
           </div>
 
           <div className="space-y-3 rounded-lg border bg-card p-5 shadow-sm">
-            <p className="text-sm font-semibold">SMTP / Email Test</p>
+            <p className="text-sm font-semibold">Email Test</p>
             {emailConfigured ? (
               <p className="text-xs text-emerald-700">
-                SMTP configured{smtpFrom ? ` — sending from ${smtpFrom}` : ""}.
+                Email configured{smtpFrom ? ` — sending from ${smtpFrom}` : ""}.
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Add SMTP settings to <code>api/.env</code> and restart the API. See <code>api/SMTP_SETUP.md</code>.
+                Set <code>RESEND_API_KEY</code> on Render (recommended), or SMTP in <code>api/.env</code> for
+                local. See <code>api/SMTP_SETUP.md</code>.
               </p>
             )}
             <div className="flex gap-2">
@@ -450,7 +451,9 @@ export function BulkIssuancePage() {
                 {activeBatch.failed} failed
               </p>
             </div>
-            {activeBatch.status === "COMPLETED" && emailConfigured && (
+            {emailConfigured &&
+              (activeBatch.status === "COMPLETED" ||
+                activeBatch.certificates.some((c) => c.emailStatus === "FAILED")) && (
               <Button variant="outline" size="sm" onClick={() => handleResendEmails(activeBatch.id)}>
                 <Mail className="mr-1.5 h-3.5 w-3.5" />
                 Resend Emails
@@ -476,12 +479,10 @@ export function BulkIssuancePage() {
                     <td className="py-2 pr-4 text-muted-foreground">{cert.email}</td>
                     <td className="py-2 pr-4 font-mono text-xs">{cert.credentialId}</td>
                     <td className={`py-2 pr-4 ${statusColor(cert.status)}`}>{cert.status}</td>
-                    <td className={`py-2 ${statusColor(cert.emailStatus)}`}>
-                      {cert.emailStatus}
+                    <td className="py-2">
+                      <span className={statusColor(cert.emailStatus)}>{cert.emailStatus}</span>
                       {cert.emailError && (
-                        <span className="ml-1 text-xs text-red-500" title={cert.emailError}>
-                          !
-                        </span>
+                        <p className="mt-0.5 max-w-xs text-xs leading-snug text-red-600">{cert.emailError}</p>
                       )}
                     </td>
                   </tr>
