@@ -5,9 +5,8 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { CertificatePreview } from "@/components/certificate-preview";
+import { CertificatePreview, type CertificatePreviewData } from "@/components/certificate-preview";
 import { ElementInspector } from "@/components/element-inspector";
 import {
   DEFAULT_CERTIFICATE_LAYOUT,
@@ -17,6 +16,7 @@ import {
   type CertificateElementId,
   type CertificateLayoutConfig,
 } from "@/lib/certificate-layout";
+import { formatCertificateDate } from "@/lib/certificate-utils";
 import { api, apiBase } from "@/lib/api-client";
 import { getAuthToken } from "@/lib/auth";
 
@@ -34,7 +34,7 @@ type TemplateDetail = TemplateSummary & {
 const DEFAULT_BODY =
   "This is to certify that the above-named participant has successfully completed the training program conducted by IQmath Technologies, demonstrating dedication and proficiency in the subject matter.";
 
-const PLACEHOLDER_DATA = {
+const PLACEHOLDER_DATA: CertificatePreviewData = {
   recipientName: "Student Name",
   credentialId: "IQ-FSD-82732",
   issuedOn: new Date().toISOString(),
@@ -49,6 +49,7 @@ export function CertificateTemplateEditor() {
   const [layoutConfig, setLayoutConfig] = useState<CertificateLayoutConfig>(DEFAULT_CERTIFICATE_LAYOUT);
   const [savedLayout, setSavedLayout] = useState<CertificateLayoutConfig>(DEFAULT_CERTIFICATE_LAYOUT);
   const [selectedElement, setSelectedElement] = useState<CertificateElementId | null>(null);
+  const [previewData, setPreviewData] = useState<CertificatePreviewData>(PLACEHOLDER_DATA);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -300,14 +301,16 @@ export function CertificateTemplateEditor() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_380px]">
         <div className="space-y-3">
-          <p className="text-sm font-medium text-muted-foreground">Live Preview — click a text box to select it</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            Live Preview — click to select, click again or double-click to edit text
+          </p>
           {loading ? (
             <div className="flex aspect-[842/595] w-full animate-pulse items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
               Loading…
             </div>
           ) : (
             <CertificatePreview
-              data={PLACEHOLDER_DATA}
+              data={previewData}
               overrides={{
                 bodyTemplate,
                 ...(previewImageUrl ? { templateImageUrl: previewImageUrl } : {}),
@@ -317,6 +320,8 @@ export function CertificateTemplateEditor() {
               selectedElement={selectedElement}
               onSelectElement={setSelectedElement}
               onLayoutConfigChange={setLayoutConfig}
+              onBodyTemplateChange={setBodyTemplate}
+              onPreviewDataChange={setPreviewData}
               className="w-full"
             />
           )}
@@ -344,31 +349,35 @@ export function CertificateTemplateEditor() {
               elementId={selectedElement}
               style={layoutConfig[selectedElement]}
               onChange={updateSelectedStyle}
+              bodyText={bodyTemplate}
+              onBodyTextChange={setBodyTemplate}
+              previewText={
+                selectedElement === "recipient"
+                  ? previewData.recipientName
+                  : selectedElement === "credential"
+                    ? previewData.credentialId
+                    : selectedElement === "issuedDate"
+                      ? previewData.issuedOn
+                        ? formatCertificateDate(previewData.issuedOn)
+                        : ""
+                      : undefined
+              }
+              onPreviewTextChange={
+                selectedElement === "recipient"
+                  ? (next) => setPreviewData((d) => ({ ...d, recipientName: next }))
+                  : selectedElement === "credential"
+                    ? (next) => setPreviewData((d) => ({ ...d, credentialId: next }))
+                    : selectedElement === "issuedDate"
+                      ? (next) => setPreviewData((d) => ({ ...d, issuedOn: next }))
+                      : undefined
+              }
             />
           ) : (
             <p className="text-sm text-muted-foreground">
-              Select a text box on the certificate to edit font, size, color, alignment, and box dimensions.
+              Select a text box on the certificate to edit its text, fonts, and layout. For the
+              description paragraph, select words and use Bold (or Ctrl/Cmd+B).
             </p>
           )}
-
-          <Separator />
-
-          <div className="space-y-2">
-            <Label htmlFor="bodyTemplate">Certificate Description (static)</Label>
-            <Textarea
-              id="bodyTemplate"
-              value={bodyTemplate}
-              onChange={(e) => {
-                setBodyTemplate(e.target.value);
-                if (!selectedElement) setSelectedElement("body");
-              }}
-              rows={5}
-              className="resize-none text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Shown in the Description box. Drag the Issue Date box to position the date on the certificate.
-            </p>
-          </div>
 
           <Separator />
 

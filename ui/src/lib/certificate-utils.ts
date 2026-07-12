@@ -7,7 +7,9 @@ export function scoreTier(score: number): { label: string; accentClass: string }
 }
 
 export function formatCertificateDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-MY", {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-MY", {
     year: "numeric",
     month: "long",
     day: "numeric",

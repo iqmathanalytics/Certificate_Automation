@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import {
   AlignCenter,
   AlignEndVertical,
@@ -17,6 +18,7 @@ import {
   Plus,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { FONT_OPTIONS } from "@/lib/certificate-fonts";
 import {
   ELEMENT_LABELS,
@@ -24,16 +26,21 @@ import {
   alignBoxVertical,
   detectBoxAlignH,
   detectBoxAlignV,
-  type BoxAlignH,
-  type BoxAlignV,
   type CertificateElementId,
   type CertificateElementStyle,
 } from "@/lib/certificate-layout";
+import { toggleBoldInSelection } from "@/lib/rich-text";
 
 type Props = {
   elementId: CertificateElementId;
   style: CertificateElementStyle;
   onChange: (next: CertificateElementStyle) => void;
+  /** Body paragraph text (saved on template). Only used when elementId === "body". */
+  bodyText?: string;
+  onBodyTextChange?: (next: string) => void;
+  /** Sample preview text for recipient / credential / date boxes. */
+  previewText?: string;
+  onPreviewTextChange?: (next: string) => void;
 };
 
 function ToggleBtn({
@@ -67,14 +74,87 @@ function ToggleBtn({
   );
 }
 
-export function ElementInspector({ elementId, style, onChange }: Props) {
+export function ElementInspector({
+  elementId,
+  style,
+  onChange,
+  bodyText,
+  onBodyTextChange,
+  previewText,
+  onPreviewTextChange,
+}: Props) {
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const patch = (partial: Partial<CertificateElementStyle>) => onChange({ ...style, ...partial });
   const boxAlignH = detectBoxAlignH(style);
   const boxAlignV = detectBoxAlignV(style);
 
+  const applyInlineBold = () => {
+    if (elementId !== "body" || bodyText == null || !onBodyTextChange || !bodyRef.current) return;
+    const el = bodyRef.current;
+    const result = toggleBoldInSelection(bodyText, el.selectionStart, el.selectionEnd);
+    onBodyTextChange(result.value);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
+  };
+
   return (
     <div className="space-y-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
       <p className="text-sm font-semibold text-primary">Editing: {ELEMENT_LABELS[elementId]}</p>
+
+      {elementId === "body" && onBodyTextChange && bodyText != null ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="inspectorBody">Paragraph text</Label>
+            <button
+              type="button"
+              title="Bold selection (or wrap with ** **)"
+              onClick={(e) => {
+                e.preventDefault();
+                applyInlineBold();
+              }}
+              className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2 text-xs font-medium hover:bg-muted"
+            >
+              <Bold className="h-3.5 w-3.5" />
+              Bold
+            </button>
+          </div>
+          <Textarea
+            ref={bodyRef}
+            id="inspectorBody"
+            value={bodyText}
+            onChange={(e) => onBodyTextChange(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+                e.preventDefault();
+                applyInlineBold();
+              }
+            }}
+            rows={5}
+            className="resize-none text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Select words and click Bold (or Ctrl/Cmd+B). Saved as **bold** markers on the certificate.
+          </p>
+        </div>
+      ) : null}
+
+      {elementId !== "body" && onPreviewTextChange && previewText != null ? (
+        <div className="space-y-2">
+          <Label htmlFor="inspectorPreview">Sample text (preview only)</Label>
+          <Textarea
+            id="inspectorPreview"
+            value={previewText}
+            onChange={(e) => onPreviewTextChange(e.target.value)}
+            rows={2}
+            className="resize-none text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Changes here are for layout preview only — real values come from each certificate when issued.
+          </p>
+        </div>
+      ) : null}
 
       <div className="space-y-2">
         <Label>Font</Label>
@@ -122,7 +202,7 @@ export function ElementInspector({ elementId, style, onChange }: Props) {
 
       <div className="flex flex-wrap gap-2">
         <ToggleBtn
-          title="Bold"
+          title="Bold (entire box)"
           active={style.fontWeight >= 600}
           onClick={() => patch({ fontWeight: style.fontWeight >= 600 ? 400 : 700 })}
         >
@@ -307,7 +387,6 @@ export function ElementInspector({ elementId, style, onChange }: Props) {
           />
         </div>
       </div>
-
     </div>
   );
 }

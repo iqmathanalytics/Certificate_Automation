@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import { verticalAlignToFlex, type CertificateElementStyle } from "@/lib/certificate-layout";
 
 type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
@@ -34,8 +41,10 @@ function clamp(value: number, min: number, max: number) {
 type Props = {
   selected: boolean;
   editable: boolean;
+  editing?: boolean;
   style: CertificateElementStyle;
   onSelect: () => void;
+  onStartEdit?: () => void;
   onStyleChange: (next: CertificateElementStyle) => void;
   children: ReactNode;
   canvasRef: React.RefObject<HTMLDivElement | null>;
@@ -48,6 +57,7 @@ type Interaction =
       startX: number;
       startY: number;
       origin: CertificateElementStyle;
+      moved: boolean;
     }
   | {
       kind: "resize";
@@ -61,8 +71,10 @@ type Interaction =
 export function EditableTextBox({
   selected,
   editable,
+  editing = false,
   style,
   onSelect,
+  onStartEdit,
   onStyleChange,
   children,
   canvasRef,
@@ -83,6 +95,10 @@ export function EditableTextBox({
       const current = styleRef.current;
 
       if (interaction.kind === "drag") {
+        if (!interaction.moved && Math.hypot(dx, dy) < 0.35) return;
+        if (!interaction.moved) {
+          setInteraction({ ...interaction, moved: true });
+        }
         onStyleChange({
           ...current,
           x: clamp(o.x + dx, 0, 100 - o.width),
@@ -111,7 +127,17 @@ export function EditableTextBox({
     };
 
     const onUp = (e: globalThis.PointerEvent) => {
-      if (e.pointerId === interaction.pointerId) setInteraction(null);
+      if (e.pointerId !== interaction.pointerId) return;
+      // Click without drag on an already-selected box → enter text edit
+      if (
+        interaction.kind === "drag" &&
+        !interaction.moved &&
+        selected &&
+        onStartEdit
+      ) {
+        onStartEdit();
+      }
+      setInteraction(null);
     };
 
     window.addEventListener("pointermove", onMove);
@@ -122,10 +148,10 @@ export function EditableTextBox({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [interaction, canvasRef, onStyleChange]);
+  }, [interaction, canvasRef, onStyleChange, onStartEdit, selected]);
 
   const startDrag = (e: PointerEvent<HTMLDivElement>) => {
-    if (!editable || interaction) return;
+    if (!editable || interaction || editing) return;
     e.stopPropagation();
     onSelect();
     setInteraction({
@@ -134,11 +160,12 @@ export function EditableTextBox({
       startX: e.clientX,
       startY: e.clientY,
       origin: style,
+      moved: false,
     });
   };
 
   const startResize = (handle: ResizeHandle, e: PointerEvent<HTMLDivElement>) => {
-    if (!editable) return;
+    if (!editable || editing) return;
     e.stopPropagation();
     e.preventDefault();
     onSelect();
@@ -160,9 +187,16 @@ export function EditableTextBox({
         top: `${style.y}%`,
         width: `${style.width}%`,
         height: `${style.height}%`,
-        touchAction: "none",
+        touchAction: editing ? "auto" : "none",
       }}
       onPointerDown={startDrag}
+      onDoubleClick={(e) => {
+        if (!editable) return;
+        e.stopPropagation();
+        e.preventDefault();
+        onSelect();
+        onStartEdit?.();
+      }}
       onClick={(e) => e.stopPropagation()}
     >
       <div
@@ -172,7 +206,7 @@ export function EditableTextBox({
               ? "overflow-visible ring-2 ring-primary ring-offset-1"
               : "overflow-visible ring-1 ring-transparent hover:ring-primary/40"
             : "overflow-visible"
-        } ${editable ? "cursor-move" : ""}`}
+        } ${editable && !editing ? "cursor-move" : ""} ${editing ? "cursor-text" : ""}`}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -183,6 +217,7 @@ export function EditableTextBox({
 
         {editable &&
           selected &&
+          !editing &&
           HANDLES.map((handle) => (
             <div
               key={handle}

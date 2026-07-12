@@ -7,6 +7,7 @@ import {
   textCss,
 } from "../lib/certificate-layout.js";
 import { formatRecipientName, formatIssuedDateLong } from "../lib/certificate-copy.js";
+import { boldMarkdownToHtml, escapeHtml } from "../lib/rich-text.js";
 import { getDefaultTemplateId } from "../lib/seed-templates.js";
 import { resolveTemplateImagePath } from "../lib/template-assets.js";
 export type CertificateHtmlInput = {
@@ -22,14 +23,6 @@ const CERT_DEFAULTS = {
     "This is to certify that the above-named participant has successfully completed the training program conducted by IQmath Technologies, demonstrating dedication and proficiency in the subject matter.",
 };
 
-function escapeHtml(s: string) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function templateBackgroundDataUri(templateId: string): string {
   const file = resolveTemplateImagePath(templateId);
   if (!file) return "";
@@ -42,7 +35,7 @@ export async function buildCertificateHtml(input: CertificateHtmlInput): Promise
   const template = await prisma.certificateTemplate.findUnique({ where: { id: templateId } });
   const legacyConfig = await prisma.certificateConfig.findUnique({ where: { id: "default" } }).catch(() => null);
   const layoutCfg = parseLayoutConfig(template?.layoutJson ?? legacyConfig?.layoutJson);
-  const bodyContent = escapeHtml(
+  const bodyContent = boldMarkdownToHtml(
     input.bodyText || template?.bodyTemplate || legacyConfig?.bodyTemplate || CERT_DEFAULTS.bodyTemplate,
   );
   const bg = templateBackgroundDataUri(templateId);
