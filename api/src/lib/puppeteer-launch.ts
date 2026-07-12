@@ -20,7 +20,9 @@ export async function launchHeadlessBrowser(): Promise<Browser> {
     });
   }
 
-  const puppeteer = await import("puppeteer");
+  // Local-only dependency; resolved at runtime when not in production.
+  const puppeteerModule = "puppeteer";
+  const puppeteer = await import(puppeteerModule);
   return puppeteer.default.launch({
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--font-render-hinting=none"],

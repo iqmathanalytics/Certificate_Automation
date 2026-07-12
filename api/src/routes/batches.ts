@@ -101,7 +101,7 @@ router.get("/batches", requireAuth, async (_req, res) => {
 router.get("/batches/:id", requireAuth, async (req, res) => {
   try {
     const batch = await prisma.certificateBatch.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       include: {
         template: { select: { id: true, name: true } },
         certificates: {
@@ -230,7 +230,7 @@ router.post("/batches/:id/send-emails", requireAuth, async (req, res) => {
     if (!emailConfigured()) {
       return res.status(400).json({ error: "Email is not configured. Set SMTP variables in .env" });
     }
-    const batch = await prisma.certificateBatch.findUnique({ where: { id: req.params.id } });
+    const batch = await prisma.certificateBatch.findUnique({ where: { id: req.params.id as string } });
     if (!batch) return res.status(404).json({ error: "Batch not found" });
 
     sendBatchEmails(batch.id).catch((err) => {
