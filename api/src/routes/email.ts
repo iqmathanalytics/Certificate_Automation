@@ -3,9 +3,11 @@ import { z } from "zod";
 import { emailConfigured, sendTestEmail } from "../services/email.js";
 import { env } from "../lib/env.js";
 
+import { requireAuth } from "../middleware/require-auth.js";
+
 const router = Router();
 
-router.get("/email/status", (_req, res) => {
+router.get("/email/status", requireAuth, (_req, res) => {
   res.json({
     configured: emailConfigured(),
     host: env.smtp.host || null,
@@ -15,7 +17,7 @@ router.get("/email/status", (_req, res) => {
   });
 });
 
-router.post("/email/test", async (req, res) => {
+router.post("/email/test", requireAuth, async (req, res) => {
   try {
     const schema = z.object({ to: z.string().email() });
     const parsed = schema.safeParse(req.body);

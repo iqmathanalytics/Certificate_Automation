@@ -6,7 +6,7 @@ import {
   parseLayoutConfig,
   textCss,
 } from "../lib/certificate-layout.js";
-import { formatRecipientName } from "../lib/certificate-copy.js";
+import { formatRecipientName, formatIssuedDateLong } from "../lib/certificate-copy.js";
 import { getDefaultTemplateId } from "../lib/seed-templates.js";
 import { resolveTemplateImagePath } from "../lib/template-assets.js";
 export type CertificateHtmlInput = {
@@ -44,10 +44,13 @@ export async function buildCertificateHtml(input: CertificateHtmlInput): Promise
   const layoutCfg = parseLayoutConfig(template?.layoutJson ?? legacyConfig?.layoutJson);
   const bodyContent = escapeHtml(
     input.bodyText || template?.bodyTemplate || legacyConfig?.bodyTemplate || CERT_DEFAULTS.bodyTemplate,
-  );  const bg = templateBackgroundDataUri(templateId);
+  );
+  const bg = templateBackgroundDataUri(templateId);
   const r = layoutCfg.recipient;
   const b = layoutCfg.body;
   const c = layoutCfg.credential;
+  const d = layoutCfg.issuedDate;
+  const issuedLabel = formatIssuedDateLong(input.issuedOn);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -91,10 +94,16 @@ export async function buildCertificateHtml(input: CertificateHtmlInput): Promise
       <p style="${textCss(b)}">${bodyContent}</p>
     </div>
     <div class="text-block" style="${blockCss(c)}">
-      <div style="${textCss(c)}">
+      <p style="${textCss(c)}">
         <span style="font-weight:700;font-size:${c.fontSize - 1}px">Certificate No:</span>
         <span> ${escapeHtml(input.credentialId)}</span>
-      </div>
+      </p>
+    </div>
+    <div class="text-block" style="${blockCss(d)}">
+      <p style="${textCss(d)}">
+        <span style="font-weight:700;font-size:${d.fontSize - 1}px">Issued:</span>
+        <span> ${escapeHtml(issuedLabel)}</span>
+      </p>
     </div>
   </div>
 </body>

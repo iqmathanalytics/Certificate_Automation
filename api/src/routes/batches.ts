@@ -9,6 +9,7 @@ import { emailConfigured } from "../services/email.js";
 import { verifyUrl } from "../lib/env.js";
 import { getDefaultTemplateId } from "../lib/seed-templates.js";
 import { templateImageExists } from "../lib/template-assets.js";
+import { requireAuth } from "../middleware/require-auth.js";
 
 const router = Router();
 
@@ -20,7 +21,43 @@ const csvUpload = multer({
   },
 });
 
-router.get("/batches/id-preview", async (req, res) => {
+router.get("/verify/:credentialId", async (req, res) => {
+  try {
+    const credentialId = (req.params.credentialId as string).trim().toUpperCase();
+    const cert = await prisma.certificate.findUnique({
+      where: { credentialId },
+      include: {
+        batch: { select: { title: true, description: true, templateId: true } },
+      },
+    });
+
+    if (!cert || cert.status !== "GENERATED") {
+      return res.status(404).json({ valid: false, error: "Certificate not found" });
+    }
+
+    const template = cert.batch.templateId
+      ? await prisma.certificateTemplate.findUnique({ where: { id: cert.batch.templateId } })
+      : null;
+
+    res.json({
+      valid: true,
+      certificate: {
+        credentialId: cert.credentialId,
+        recipientName: cert.recipientName,
+        issuedDate: cert.issuedDate,
+        description: cert.batch.description ?? template?.bodyTemplate ?? null,
+        batchTitle: cert.batch.title,
+        brandName: "IQMATH TECHNOLOGIES",
+        verifyUrl: verifyUrl(cert.credentialId),
+      },
+    });
+  } catch (err) {
+    console.error("GET /verify/:credentialId error:", err);
+    res.status(500).json({ valid: false, error: "Verification failed" });
+  }
+});
+
+router.get("/batches/id-preview", requireAuth, async (req, res) => {
   try {
     const prefix = String(req.query.prefix ?? "");
     if (!prefix || !validatePrefix(prefix)) {
@@ -33,7 +70,7 @@ router.get("/batches/id-preview", async (req, res) => {
   }
 });
 
-router.get("/batches", async (_req, res) => {
+router.get("/batches", requireAuth, async (_req, res) => {
   try {
     const batches = await prisma.certificateBatch.findMany({
       orderBy: { createdAt: "desc" },
@@ -61,7 +98,7 @@ router.get("/batches", async (_req, res) => {
   }
 });
 
-router.get("/batches/:id", async (req, res) => {
+router.get("/batches/:id", requireAuth, async (req, res) => {
   try {
     const batch = await prisma.certificateBatch.findUnique({
       where: { id: req.params.id },
@@ -90,7 +127,7 @@ router.get("/batches/:id", async (req, res) => {
   }
 });
 
-router.post("/batches", csvUpload.single("csv"), async (req, res) => {
+router.post("/batches", requireAuth, csvUpload.single("csv"), async (req, res) => {
   try {
     const metaSchema = z.object({
       issuedDate: z.string(),
@@ -188,7 +225,7 @@ router.post("/batches", csvUpload.single("csv"), async (req, res) => {
   }
 });
 
-router.post("/batches/:id/send-emails", async (req, res) => {
+router.post("/batches/:id/send-emails", requireAuth, async (req, res) => {
   try {
     if (!emailConfigured()) {
       return res.status(400).json({ error: "Email is not configured. Set SMTP variables in .env" });
@@ -204,42 +241,6 @@ router.post("/batches/:id/send-emails", async (req, res) => {
   } catch (err) {
     console.error("POST /batches/:id/send-emails error:", err);
     res.status(500).json({ error: "Failed to send emails" });
-  }
-});
-
-router.get("/verify/:credentialId", async (req, res) => {
-  try {
-    const credentialId = req.params.credentialId.trim().toUpperCase();
-    const cert = await prisma.certificate.findUnique({
-      where: { credentialId },
-      include: {
-        batch: { select: { title: true, description: true, templateId: true } },
-      },
-    });
-
-    if (!cert || cert.status !== "GENERATED") {
-      return res.status(404).json({ valid: false, error: "Certificate not found" });
-    }
-
-    const template = cert.batch.templateId
-      ? await prisma.certificateTemplate.findUnique({ where: { id: cert.batch.templateId } })
-      : null;
-
-    res.json({
-      valid: true,
-      certificate: {
-        credentialId: cert.credentialId,
-        recipientName: cert.recipientName,
-        issuedDate: cert.issuedDate,
-        description: cert.batch.description ?? template?.bodyTemplate ?? null,
-        batchTitle: cert.batch.title,
-        brandName: "IQMATH TECHNOLOGIES",
-        verifyUrl: verifyUrl(cert.credentialId),
-      },
-    });
-  } catch (err) {
-    console.error("GET /verify/:credentialId error:", err);
-    res.status(500).json({ valid: false, error: "Verification failed" });
   }
 });
 

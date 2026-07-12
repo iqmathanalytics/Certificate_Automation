@@ -179,7 +179,7 @@ export function EditableTextBox({
           justifyContent: verticalAlignToFlex(style.verticalAlign),
         }}
       >
-        <div className="w-full shrink-0">{children}</div>
+        <div className="w-full min-w-0">{children}</div>
 
         {editable &&
           selected &&
@@ -206,5 +206,7 @@ export function textStyleProps(style: CertificateElementStyle, scale: number): C
     color: style.color,
     lineHeight: style.lineHeight,
     width: "100%",
+    margin: 0,
+    ...(style.textAlign === "justify" ? { textJustify: "inter-word" } : {}),
   };
 }

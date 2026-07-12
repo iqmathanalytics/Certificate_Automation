@@ -1,7 +1,7 @@
 export type TextAlign = "left" | "center" | "right" | "justify";
 export type VerticalAlign = "top" | "center" | "bottom";
 
-export type CertificateElementId = "recipient" | "body" | "credential";
+export type CertificateElementId = "recipient" | "body" | "credential" | "issuedDate";
 
 export type CertificateElementStyle = {
   x: number;
@@ -52,13 +52,27 @@ export const DEFAULT_CERTIFICATE_LAYOUT: CertificateLayoutConfig = {
   credential: {
     x: 30,
     y: 76,
-    width: 64.5,
+    width: 40,
     height: 6,
     fontFamily: "'Montserrat', Helvetica, Arial, sans-serif",
     fontSize: 11,
     fontWeight: 500,
     fontStyle: "normal",
     textAlign: "left",
+    verticalAlign: "center",
+    color: "#252525",
+    lineHeight: 1.4,
+  },
+  issuedDate: {
+    x: 54.5,
+    y: 76,
+    width: 40,
+    height: 6,
+    fontFamily: "'Montserrat', Helvetica, Arial, sans-serif",
+    fontSize: 11,
+    fontWeight: 500,
+    fontStyle: "normal",
+    textAlign: "right",
     verticalAlign: "center",
     color: "#252525",
     lineHeight: 1.4,
@@ -96,6 +110,7 @@ export function parseLayoutConfig(layoutJson?: string | null): CertificateLayout
       recipient: mergeElement("recipient", raw.recipient),
       body: mergeElement("body", raw.body),
       credential: mergeElement("credential", raw.credential),
+      issuedDate: mergeElement("issuedDate", raw.issuedDate),
     };
   } catch {
     return { ...DEFAULT_CERTIFICATE_LAYOUT };
@@ -122,6 +137,7 @@ export function blockCss(style: CertificateElementStyle): string {
 }
 
 export function textCss(style: CertificateElementStyle): string {
+  const justifyExtra = style.textAlign === "justify" ? ";text-justify:inter-word" : "";
   return [
     `font-family:${style.fontFamily}`,
     `font-size:${style.fontSize}px`,
@@ -131,7 +147,8 @@ export function textCss(style: CertificateElementStyle): string {
     `color:${style.color}`,
     `line-height:${style.lineHeight}`,
     `width:100%`,
-  ].join(";");
+    `margin:0`,
+  ].join(";") + justifyExtra;
 }
 
 export const GOOGLE_FONTS_URL =

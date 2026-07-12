@@ -18,6 +18,7 @@ import {
   type CertificateLayoutConfig,
 } from "@/lib/certificate-layout";
 import { api, apiBase } from "@/lib/api-client";
+import { getAuthToken } from "@/lib/auth";
 
 type TemplateSummary = {
   id: string;
@@ -36,6 +37,7 @@ const DEFAULT_BODY =
 const PLACEHOLDER_DATA = {
   recipientName: "Student Name",
   credentialId: "IQ-FSD-82732",
+  issuedOn: new Date().toISOString(),
 };
 
 export function CertificateTemplateEditor() {
@@ -150,6 +152,7 @@ export function CertificateTemplateEditor() {
         form.append("image", imageFile);
         const res = await fetch(`${apiBase}/api/templates/${selectedId}/image`, {
           method: "POST",
+          headers: getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {},
           body: form,
         });
         if (!res.ok) throw new Error("Image upload failed");
@@ -193,7 +196,10 @@ export function CertificateTemplateEditor() {
     try {
       const res = await fetch(`${apiBase}/api/templates/${selectedId}/preview-pdf`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}),
+        },
         body: JSON.stringify({
           recipientName: "Sample Student",
           credentialId: "IQ-FSD-82732",
@@ -315,7 +321,7 @@ export function CertificateTemplateEditor() {
             />
           )}
           <div className="flex flex-wrap gap-2">
-            {(["recipient", "body", "credential"] as CertificateElementId[]).map((id) => (
+            {(["recipient", "body", "credential", "issuedDate"] as CertificateElementId[]).map((id) => (
               <button
                 key={id}
                 type="button"
@@ -360,7 +366,7 @@ export function CertificateTemplateEditor() {
               className="resize-none text-sm"
             />
             <p className="text-xs text-muted-foreground">
-              Shown in the Description box. Issue date is only on the verification page, not the certificate.
+              Shown in the Description box. Drag the Issue Date box to position the date on the certificate.
             </p>
           </div>
 

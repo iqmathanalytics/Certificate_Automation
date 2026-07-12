@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api, apiBase } from "@/lib/api-client";
+import { api, apiForm } from "@/lib/api-client";
 
 type TemplateOption = {
   id: string;
@@ -168,22 +168,14 @@ export function BulkIssuancePage() {
       if (title.trim()) form.append("title", title.trim());
       form.append("sendEmails", sendEmails ? "true" : "false");
 
-      const res = await fetch(`${apiBase}/api/batches`, { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) {
-        const details = (data as { details?: string[] }).details;
-        throw new Error(
-          details?.length ? details.join(" ") : ((data as { error?: string }).error ?? "Upload failed"),
-        );
-      }
-
-      toast.success((data as { message: string }).message);
+      const data = await apiForm<{ message: string; batch: { id: string } }>("/api/batches", form);
+      toast.success(data.message);
       setCsvFile(null);
       if (fileRef.current) fileRef.current.value = "";
       await loadBatches();
       refreshIdPreview(idPrefix);
 
-      const batchId = (data as { batch: { id: string } }).batch.id;
+      const batchId = data.batch.id;
       const detail = await loadBatchDetail(batchId);
       if (detail) setActiveBatch(detail);
     } catch (err) {

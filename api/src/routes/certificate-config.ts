@@ -11,6 +11,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const assetsDir = path.join(__dirname, "../../assets");
 const uiPublicDir = path.join(__dirname, "../../../ui/public");
 
+import { requireAuth } from "../middleware/require-auth.js";
+
 const router = Router();
 
 const CERT_CONFIG_DEFAULTS = {
@@ -27,7 +29,7 @@ const CERT_CONFIG_DEFAULTS = {
   layoutJson: null as string | null,
 };
 
-router.get("/certificate-config", async (_req, res) => {
+router.get("/certificate-config", requireAuth, async (_req, res) => {
   try {
     const config = await prisma.certificateConfig.findUnique({ where: { id: "default" } });
     res.json({ config: config ?? { id: "default", ...CERT_CONFIG_DEFAULTS } });
@@ -37,7 +39,7 @@ router.get("/certificate-config", async (_req, res) => {
   }
 });
 
-router.put("/certificate-config", async (req, res) => {
+router.put("/certificate-config", requireAuth, async (req, res) => {
   try {
     const schema = z.object({
       brandName: z.string().min(1).max(100).optional(),
@@ -87,7 +89,7 @@ const certImageUpload = multer({
   },
 });
 
-router.post("/certificate-config/image", certImageUpload.single("image"), async (req, res) => {
+router.post("/certificate-config/image", requireAuth, certImageUpload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
     if (!fs.existsSync(assetsDir)) fs.mkdirSync(assetsDir, { recursive: true });
@@ -103,7 +105,7 @@ router.post("/certificate-config/image", certImageUpload.single("image"), async 
   }
 });
 
-router.post("/certificate-config/preview-pdf", async (req, res) => {
+router.post("/certificate-config/preview-pdf", requireAuth, async (req, res) => {
   try {
     const schema = z.object({
       recipientName: z.string().min(1).max(120),

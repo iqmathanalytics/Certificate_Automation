@@ -1,5 +1,7 @@
-import { Link, useLocation } from "react-router-dom";
-import { Award, FileSpreadsheet, LayoutTemplate } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Award, FileSpreadsheet, LayoutTemplate, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { clearAuthSession, getAuthEmail } from "@/lib/auth";
 
 const NAV = [
   { to: "/issue", label: "Issue Certificates", icon: FileSpreadsheet },
@@ -8,6 +10,13 @@ const NAV = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const email = getAuthEmail();
+
+  const handleLogout = () => {
+    clearAuthSession();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <div className="min-h-screen">
@@ -22,25 +31,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <p className="text-xs text-muted-foreground">Certificate Automation</p>
             </div>
           </Link>
-          <nav className="flex items-center gap-1">
-            {NAV.map(({ to, label, icon: Icon }) => {
-              const active = location.pathname === to;
-              return (
-                <Link
-                  key={to}
-                  to={to}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+          <div className="flex items-center gap-2">
+            <nav className="flex items-center gap-1">
+              {NAV.map(({ to, label, icon: Icon }) => {
+                const active = location.pathname === to;
+                return (
+                  <Link
+                    key={to}
+                    to={to}
+                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+            {email && (
+              <span className="hidden text-xs text-muted-foreground md:inline">{email}</span>
+            )}
+            <Button variant="ghost" size="sm" onClick={handleLogout} title="Sign out">
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
       <main>{children}</main>

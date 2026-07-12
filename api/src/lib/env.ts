@@ -5,8 +5,11 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   clientUrls: process.env.CLIENT_URLS
     ? process.env.CLIENT_URLS.split(",").map((s) => s.trim())
-    : ["http://localhost:8080", "http://localhost:5173", "http://127.0.0.1:8080"],
+    : ["http://localhost:8080", "http://localhost:5173", "http://127.0.0.1:8080", "http://localhost:5174"],
   publicSiteUrl: (process.env.PUBLIC_SITE_URL ?? "https://www.iqmath.in").replace(/\/$/, ""),
+  authSecret: process.env.AUTH_SECRET ?? "dev-change-me-in-production",
+  adminEmail: process.env.ADMIN_EMAIL ?? "contact@iqmath.in",
+  adminPassword: process.env.ADMIN_PASSWORD ?? "",
   smtp: {
     host: process.env.SMTP_HOST ?? "",
     port: Number(process.env.SMTP_PORT ?? 587),
@@ -19,5 +22,5 @@ export const env = {
 };
 
 export function verifyUrl(credentialId: string): string {
-  return `${env.publicSiteUrl}/certificate/${credentialId}`;
+  return `${env.publicSiteUrl}/certificates/${credentialId}`;
 }

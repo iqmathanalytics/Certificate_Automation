@@ -3,7 +3,7 @@ export type VerticalAlign = "top" | "center" | "bottom";
 export type BoxAlignH = "left" | "center" | "right";
 export type BoxAlignV = "top" | "center" | "bottom";
 
-export type CertificateElementId = "recipient" | "body" | "credential";
+export type CertificateElementId = "recipient" | "body" | "credential" | "issuedDate";
 
 export type CertificateElementStyle = {
   x: number;
@@ -26,6 +26,7 @@ export const ELEMENT_LABELS: Record<CertificateElementId, string> = {
   recipient: "Recipient Name",
   body: "Description",
   credential: "Certificate Number",
+  issuedDate: "Issue Date",
 };
 
 
@@ -61,13 +62,27 @@ export const DEFAULT_CERTIFICATE_LAYOUT: CertificateLayoutConfig = {
   credential: {
     x: 30,
     y: 76,
-    width: 64.5,
+    width: 40,
     height: 6,
     fontFamily: "'Montserrat', Helvetica, Arial, sans-serif",
     fontSize: 11,
     fontWeight: 500,
     fontStyle: "normal",
     textAlign: "left",
+    verticalAlign: "center",
+    color: "#252525",
+    lineHeight: 1.4,
+  },
+  issuedDate: {
+    x: 54.5,
+    y: 76,
+    width: 40,
+    height: 6,
+    fontFamily: "'Montserrat', Helvetica, Arial, sans-serif",
+    fontSize: 11,
+    fontWeight: 500,
+    fontStyle: "normal",
+    textAlign: "right",
     verticalAlign: "center",
     color: "#252525",
     lineHeight: 1.4,
@@ -105,6 +120,7 @@ export function parseLayoutConfig(layoutJson?: string | null): CertificateLayout
       recipient: mergeElement("recipient", raw.recipient),
       body: mergeElement("body", raw.body),
       credential: mergeElement("credential", raw.credential),
+      issuedDate: mergeElement("issuedDate", raw.issuedDate),
     };
   } catch {
     return { ...DEFAULT_CERTIFICATE_LAYOUT };

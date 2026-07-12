@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma.js";
 import { generateCertificatePdf } from "../services/pdf-certificate.js";
 import { publicTemplateImageUrl, resolveTemplateImagePath, writeTemplateImage } from "../lib/template-assets.js";
 import { getDefaultTemplateId } from "../lib/seed-templates.js";
+import { requireAuth } from "../middleware/require-auth.js";
 
 const router = Router();
 
@@ -18,7 +19,20 @@ const TEMPLATE_DEFAULTS = {
   bodyAlign: "center",
 };
 
-router.get("/templates", async (_req, res) => {
+router.get("/templates/:id/image", async (req, res) => {
+  try {
+    const imagePath = resolveTemplateImagePath(req.params.id as string);
+    if (!imagePath) return res.status(404).json({ error: "Template image not found" });
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    res.send(fs.readFileSync(imagePath));
+  } catch (err) {
+    console.error("GET /templates/:id/image error:", err);
+    res.status(500).json({ error: "Failed to load image" });
+  }
+});
+
+router.get("/templates", requireAuth, async (_req, res) => {
   try {
     const templates = await prisma.certificateTemplate.findMany({
       orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
@@ -38,7 +52,7 @@ router.get("/templates", async (_req, res) => {
   }
 });
 
-router.get("/templates/:id", async (req, res) => {
+router.get("/templates/:id", requireAuth, async (req, res) => {
   try {
     const template = await prisma.certificateTemplate.findUnique({ where: { id: req.params.id as string } });
     if (!template) return res.status(404).json({ error: "Template not found" });
@@ -53,7 +67,7 @@ router.get("/templates/:id", async (req, res) => {
   }
 });
 
-router.post("/templates", async (req, res) => {
+router.post("/templates", requireAuth, async (req, res) => {
   try {
     const schema = z.object({
       name: z.string().min(1).max(120),
@@ -97,7 +111,7 @@ router.post("/templates", async (req, res) => {
   }
 });
 
-router.put("/templates/:id", async (req, res) => {
+router.put("/templates/:id", requireAuth, async (req, res) => {
   try {
     const schema = z.object({
       name: z.string().min(1).max(120).optional(),
@@ -130,7 +144,7 @@ router.put("/templates/:id", async (req, res) => {
   }
 });
 
-router.delete("/templates/:id", async (req, res) => {
+router.delete("/templates/:id", requireAuth, async (req, res) => {
   try {
     const template = await prisma.certificateTemplate.findUnique({ where: { id: req.params.id as string } });
     if (!template) return res.status(404).json({ error: "Template not found" });
@@ -155,7 +169,7 @@ const imageUpload = multer({
   fileFilter: (_req, file, cb) => cb(null, file.mimetype.startsWith("image/")),
 });
 
-router.post("/templates/:id/image", imageUpload.single("image"), async (req, res) => {
+router.post("/templates/:id/image", requireAuth, imageUpload.single("image"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
     const template = await prisma.certificateTemplate.findUnique({ where: { id: req.params.id as string } });
@@ -168,20 +182,7 @@ router.post("/templates/:id/image", imageUpload.single("image"), async (req, res
   }
 });
 
-router.get("/templates/:id/image", async (req, res) => {
-  try {
-    const imagePath = resolveTemplateImagePath(req.params.id as string);
-    if (!imagePath) return res.status(404).json({ error: "Template image not found" });
-    res.setHeader("Content-Type", "image/png");
-    res.setHeader("Cache-Control", "public, max-age=60");
-    res.send(fs.readFileSync(imagePath));
-  } catch (err) {
-    console.error("GET /templates/:id/image error:", err);
-    res.status(500).json({ error: "Failed to load image" });
-  }
-});
-
-router.post("/templates/:id/preview-pdf", async (req, res) => {
+router.post("/templates/:id/preview-pdf", requireAuth, async (req, res) => {
   try {
     const schema = z.object({
       recipientName: z.string().min(1).max(120),

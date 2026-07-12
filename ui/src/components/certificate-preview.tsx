@@ -8,11 +8,12 @@ import {
   type CertificateElementStyle,
   type CertificateLayoutConfig,
 } from "@/lib/certificate-layout";
-import { formatRecipientName } from "@/lib/certificate-utils";
+import { formatRecipientName, formatCertificateDate } from "@/lib/certificate-utils";
 
 export type CertificatePreviewData = {
   recipientName: string;
   credentialId: string;
+  issuedOn?: string;
 };
 
 export type CertificateBrandingOverrides = {
@@ -49,8 +50,9 @@ export function CertificatePreview({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const layout = resolveLayout(layoutConfig);
-  const imgSrc = overrides.templateImageUrl ?? "/certificate-template.png";
+  const imgSrc = overrides.templateImageUrl ?? `${import.meta.env.BASE_URL}certificate-template.png`;
   const bodyText = overrides.bodyTemplate ?? "";
+  const issuedLabel = data.issuedOn ? formatCertificateDate(data.issuedOn) : formatCertificateDate(new Date().toISOString());
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -109,10 +111,7 @@ export function CertificatePreview({
         onSelect={() => onSelectElement?.("body")}
         onStyleChange={(next) => updateElement("body", next)}
       >
-        <p
-          style={{ ...textStyleProps(layout.body, scale), flex: 1 }}
-          className="w-full whitespace-pre-wrap"
-        >
+        <p style={textStyleProps(layout.body, scale)} className="w-full whitespace-pre-wrap">
           {bodyText}
         </p>
       </EditableTextBox>
@@ -125,15 +124,28 @@ export function CertificatePreview({
         onSelect={() => onSelectElement?.("credential")}
         onStyleChange={(next) => updateElement("credential", next)}
       >
-        <div
-          className="flex w-full flex-wrap items-baseline gap-x-2 overflow-hidden"
-          style={textStyleProps(layout.credential, scale)}
-        >
+        <p style={textStyleProps(layout.credential, scale)} className="w-full">
           <span style={{ fontWeight: 700, fontSize: `${(layout.credential.fontSize - 1) * scale}px` }}>
             Certificate No:
           </span>
-          <span>{data.credentialId}</span>
-        </div>
+          <span> {data.credentialId}</span>
+        </p>
+      </EditableTextBox>
+
+      <EditableTextBox
+        canvasRef={canvasRef}
+        editable={editableLayout}
+        selected={selectedElement === "issuedDate"}
+        style={layout.issuedDate}
+        onSelect={() => onSelectElement?.("issuedDate")}
+        onStyleChange={(next) => updateElement("issuedDate", next)}
+      >
+        <p style={textStyleProps(layout.issuedDate, scale)} className="w-full">
+          <span style={{ fontWeight: 700, fontSize: `${(layout.issuedDate.fontSize - 1) * scale}px` }}>
+            Issued:
+          </span>
+          <span> {issuedLabel}</span>
+        </p>
       </EditableTextBox>
     </div>
   );

@@ -45,7 +45,7 @@ export function VerifyCertificatePage() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
       <header className="border-b bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-4">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to="/login" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1e3a5f] text-white">
               <Award className="h-5 w-5" />
             </div>
@@ -131,7 +131,7 @@ export function VerifyCertificatePage() {
                 : "Please provide a certificate number in the URL."}
             </p>
             <p className="mt-4 text-sm text-slate-400">
-              Format: <code className="rounded bg-slate-100 px-2 py-0.5">www.iqmath.in/certificate/IQ-XXX-XXXXX</code>
+              Format: <code className="rounded bg-slate-100 px-2 py-0.5">www.iqmath.in/certificates/IQ-FSD-82732</code>
             </p>
           </div>
         )}

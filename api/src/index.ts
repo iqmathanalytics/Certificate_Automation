@@ -6,6 +6,7 @@ import certificateRoutes from "./routes/certificate-config.js";
 import batchRoutes from "./routes/batches.js";
 import templateRoutes from "./routes/templates.js";
 import emailRoutes from "./routes/email.js";
+import authRoutes from "./routes/auth.js";
 import { seedDefaultTemplate } from "./lib/seed-templates.js";
 
 const app = express();
@@ -28,8 +29,9 @@ app.use(
 );
 
 app.use(express.json({ limit: "2mb" }));
-app.use("/api", certificateRoutes);
+app.use("/api", authRoutes);
 app.use("/api", batchRoutes);
+app.use("/api", certificateRoutes);
 app.use("/api", templateRoutes);
 app.use("/api", emailRoutes);
 
