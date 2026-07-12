@@ -18,17 +18,21 @@ const app = express();
 app.use(
   cors({
     origin(origin, callback) {
-      if (env.nodeEnv === "development") {
+      // Never throw — throwing makes OPTIONS return 500 with no ACAO header.
+      if (!origin || env.nodeEnv === "development") {
         callback(null, true);
         return;
       }
-      if (!origin || env.clientUrls.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS blocked: ${origin}`));
-      }
+      const allowed =
+        env.clientUrls.includes(origin) ||
+        origin.endsWith(".pages.dev") ||
+        origin === "https://www.iqmath.in" ||
+        origin === "https://iqmath.in";
+      callback(null, allowed);
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 
