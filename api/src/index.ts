@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import dns from "dns";
 import { env } from "./lib/env.js";
 import { connectDatabase } from "./lib/prisma.js";
 import certificateRoutes from "./routes/certificate-config.js";
@@ -8,6 +9,9 @@ import templateRoutes from "./routes/templates.js";
 import emailRoutes from "./routes/email.js";
 import authRoutes from "./routes/auth.js";
 import { seedDefaultTemplate } from "./lib/seed-templates.js";
+
+// Prefer IPv4 — TiDB Cloud publishes AAAA records that fail from some hosts (e.g. Render).
+dns.setDefaultResultOrder("ipv4first");
 
 const app = express();
 

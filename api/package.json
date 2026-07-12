@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "npx prisma db push && node dist/index.js",
+    "start": "node scripts/start.mjs",
     "build": "tsc",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
