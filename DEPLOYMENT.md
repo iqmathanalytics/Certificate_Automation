@@ -99,7 +99,9 @@ SMTP_FROM_EMAIL=contact@iqmath.in
 | Build output directory | `dist` |
 
 > The build nests the app under `dist/certificates/` so URLs like  
-> `/certificates/assets/*.js` resolve correctly (fixes MIME type errors).
+> `/certificates/assets/*.js` resolve correctly (fixes MIME type errors).  
+> `prepare-pages.mjs` also copies the React shell to `dist/index.html` + `404.html`  
+> and writes `_redirects` so `/certificates/login` loads the app (not a stub page).
 
 4. **Environment variables** (Production):
 
