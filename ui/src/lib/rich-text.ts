@@ -107,3 +107,23 @@ export function htmlFragmentToBoldMarkdown(html: string): string {
 
   return Array.from(root.childNodes).map(walk).join("").replace(/\n+$/, "");
 }
+
+/**
+ * If the body was accidentally saved as exact back-to-back duplicates
+ * (contentEditable/React bug), collapse to a single copy.
+ */
+export function dedupeRepeatedBody(src: string): string {
+  const text = src.trim();
+  if (text.length < 40) return src;
+
+  const mid = Math.floor(text.length / 2);
+  for (let i = mid - 5; i <= mid + 5; i++) {
+    if (i < 20 || i > text.length - 20) continue;
+    const a = text.slice(0, i).trim();
+    const b = text.slice(i).trim();
+    if (a.length >= 20 && a === b) return a;
+  }
+  return src;
+}
+
+

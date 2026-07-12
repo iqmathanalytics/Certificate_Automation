@@ -17,6 +17,7 @@ import {
   type CertificateLayoutConfig,
 } from "@/lib/certificate-layout";
 import { formatCertificateDate } from "@/lib/certificate-utils";
+import { dedupeRepeatedBody } from "@/lib/rich-text";
 import { api, apiBase } from "@/lib/api-client";
 import { getAuthToken } from "@/lib/auth";
 
@@ -71,7 +72,7 @@ export function CertificateTemplateEditor() {
       const data = await api<{ template: TemplateDetail; imageUrl: string; hasImage: boolean }>(
         `/api/templates/${id}`,
       );
-      const body = data.template.bodyTemplate ?? DEFAULT_BODY;
+      const body = dedupeRepeatedBody(data.template.bodyTemplate ?? DEFAULT_BODY);
       const layout = parseLayoutConfig(data.template.layoutJson);
       setSelectedId(id);
       setTemplateName(data.template.name);
@@ -167,7 +168,7 @@ export function CertificateTemplateEditor() {
         method: "PUT",
         body: JSON.stringify({
           name: templateName.trim() || undefined,
-          bodyTemplate,
+          bodyTemplate: dedupeRepeatedBody(bodyTemplate),
           layoutJson,
           recipientNameFont: layoutConfig.recipient.fontFamily,
           bodyFont: layoutConfig.body.fontFamily,
@@ -320,7 +321,7 @@ export function CertificateTemplateEditor() {
               selectedElement={selectedElement}
               onSelectElement={setSelectedElement}
               onLayoutConfigChange={setLayoutConfig}
-              onBodyTemplateChange={setBodyTemplate}
+              onBodyTemplateChange={(next) => setBodyTemplate(dedupeRepeatedBody(next))}
               onPreviewDataChange={setPreviewData}
               className="w-full"
             />
@@ -350,7 +351,7 @@ export function CertificateTemplateEditor() {
               style={layoutConfig[selectedElement]}
               onChange={updateSelectedStyle}
               bodyText={bodyTemplate}
-              onBodyTextChange={setBodyTemplate}
+              onBodyTextChange={(next) => setBodyTemplate(dedupeRepeatedBody(next))}
               previewText={
                 selectedElement === "recipient"
                   ? previewData.recipientName

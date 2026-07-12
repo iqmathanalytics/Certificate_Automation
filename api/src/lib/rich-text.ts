@@ -28,10 +28,29 @@ export function parseBoldMarkdown(src: string): RichSegment[] {
 
 /** Escape text and wrap bold segments in <strong>; newlines → <br>. */
 export function boldMarkdownToHtml(src: string): string {
-  return parseBoldMarkdown(src)
+  return parseBoldMarkdown(dedupeRepeatedBody(src))
     .map((seg) => {
       const escaped = escapeHtml(seg.text).replace(/\n/g, "<br>");
       return seg.bold ? `<strong>${escaped}</strong>` : escaped;
     })
     .join("");
 }
+
+/**
+ * If the body was accidentally saved as exact back-to-back duplicates
+ * (contentEditable/React bug), collapse to a single copy.
+ */
+export function dedupeRepeatedBody(src: string): string {
+  const text = src.trim();
+  if (text.length < 40) return src;
+
+  const mid = Math.floor(text.length / 2);
+  for (let i = mid - 5; i <= mid + 5; i++) {
+    if (i < 20 || i > text.length - 20) continue;
+    const a = text.slice(0, i).trim();
+    const b = text.slice(i).trim();
+    if (a.length >= 20 && a === b) return a;
+  }
+  return src;
+}
+

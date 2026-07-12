@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { boldMarkdownToHtml, htmlFragmentToBoldMarkdown, parseBoldMarkdown } from "@/lib/rich-text";
+import { dedupeRepeatedBody, parseBoldMarkdown, toggleBoldInSelection } from "@/lib/rich-text";
 
 type Props = {
   value: string;
@@ -10,46 +10,48 @@ type Props = {
   onFinishEdit: () => void;
 };
 
-/** Renders body markdown; when editing, uses contentEditable with Ctrl/Cmd+B for bold. */
+/**
+ * Renders body markdown (`**bold**`).
+ * Editing uses a textarea (not contentEditable) so React never mixes
+ * imperative innerHTML with VDOM children — that bug duplicated the paragraph.
+ */
 export function RichBodyText({ value, editing, style, className = "", onChange, onFinishEdit }: Props) {
-  const ref = useRef<HTMLParagraphElement>(null);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [draft, setDraft] = useState(value);
 
   useEffect(() => {
-    if (!editing || !ref.current) return;
-    ref.current.innerHTML = boldMarkdownToHtml(value);
-    ref.current.focus();
-    const range = document.createRange();
-    range.selectNodeContents(ref.current);
-    range.collapse(false);
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed DOM only when entering edit
+    if (!editing) return;
+    setDraft(value);
+    requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    });
+    // Seed draft only when entering edit mode
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
 
-  const commitFromDom = () => {
-    if (!ref.current) return;
-    onChange(htmlFragmentToBoldMarkdown(ref.current.innerHTML));
+  const commit = (next: string = draft) => {
+    onChange(next);
   };
 
-  const onKeyDown = (e: KeyboardEvent<HTMLParagraphElement>) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      commitFromDom();
-      onFinishEdit();
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-      e.preventDefault();
-      document.execCommand("bold");
-      commitFromDom();
-    }
+  const applyBold = () => {
+    const el = ref.current;
+    if (!el) return;
+    const result = toggleBoldInSelection(draft, el.selectionStart, el.selectionEnd);
+    setDraft(result.value);
+    onChange(result.value);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
   };
 
   if (!editing) {
-    const segments = parseBoldMarkdown(value);
+    const segments = parseBoldMarkdown(dedupeRepeatedBody(value));
     return (
-      <p style={style} className={`w-full whitespace-pre-wrap ${className}`}>
+      <p key="view" style={style} className={`w-full whitespace-pre-wrap ${className}`}>
         {segments.map((seg, i) =>
           seg.bold ? <strong key={i}>{seg.text}</strong> : <span key={i}>{seg.text}</span>,
         )}
@@ -58,22 +60,43 @@ export function RichBodyText({ value, editing, style, className = "", onChange, 
   }
 
   return (
-    <p
+    <textarea
+      key="edit"
       ref={ref}
-      contentEditable
-      suppressContentEditableWarning
-      style={{ ...style, outline: "none", cursor: "text" }}
-      className={`w-full whitespace-pre-wrap ${className}`}
+      value={draft}
+      rows={4}
+      style={{
+        ...style,
+        outline: "none",
+        border: "none",
+        resize: "none",
+        cursor: "text",
+        background: "transparent",
+        overflow: "auto",
+        display: "block",
+      }}
+      className={`w-full ${className}`}
       onPointerDown={(e) => e.stopPropagation()}
-      onInput={() => {
-        if (!ref.current) return;
-        onChange(htmlFragmentToBoldMarkdown(ref.current.innerHTML));
+      onChange={(e) => {
+        setDraft(e.target.value);
+        onChange(e.target.value);
       }}
       onBlur={() => {
-        commitFromDom();
+        commit();
         onFinishEdit();
       }}
-      onKeyDown={onKeyDown}
+      onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          commit();
+          onFinishEdit();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+          e.preventDefault();
+          applyBold();
+        }
+      }}
     />
   );
 }
@@ -113,7 +136,7 @@ export function InlinePlainText({
 
   if (!editing) {
     return (
-      <p style={style} className={`w-full ${multiline ? "whitespace-pre-wrap" : ""} ${className}`}>
+      <p key="view" style={style} className={`w-full ${multiline ? "whitespace-pre-wrap" : ""} ${className}`}>
         {value}
       </p>
     );
@@ -142,7 +165,7 @@ export function InlinePlainText({
   };
 
   if (multiline) {
-    return <textarea ref={ref as React.RefObject<HTMLTextAreaElement>} rows={3} {...shared} />;
+    return <textarea key="edit" ref={ref as React.RefObject<HTMLTextAreaElement>} rows={3} {...shared} />;
   }
-  return <input ref={ref as React.RefObject<HTMLInputElement>} type="text" {...shared} />;
+  return <input key="edit" ref={ref as React.RefObject<HTMLInputElement>} type="text" {...shared} />;
 }
