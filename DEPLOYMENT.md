@@ -91,65 +91,53 @@ SMTP_FROM_EMAIL=contact@iqmath.in
 
 | Field | Value |
 |-------|--------|
-| Project name | `iqmath-certificates` |
+| Project name | `certificate-automation` (or similar) |
 | Production branch | `main` |
 | Root directory | `ui` |
 | Framework preset | Vite (or None) |
 | Build command | `npm ci && npm run build` |
 | Build output directory | `dist` |
 
+> The build nests the app under `dist/certificates/` so URLs like  
+> `/certificates/assets/*.js` resolve correctly (fixes MIME type errors).
+
 4. **Environment variables** (Production):
 
 | Name | Value |
 |------|--------|
-| `VITE_API_URL` | `https://iqmath-certificates-api.onrender.com` (or your custom API domain) |
-
-> No trailing slash. Must be the **public** Render URL (or custom domain), not Internal.
+| `VITE_API_URL` | `https://iqmath-certificates-api.onrender.com` |
 
 5. **Save and Deploy**
 
-### B2. Domain options (pick one)
+Test: `https://certificate-automation.pages.dev/certificates/login`
 
-#### Option 1 — Subdomain (simplest)
+### B2. Put the app on `www.iqmath.in/certificates`
 
-Good if you can use `https://certificates.iqmath.in`
+Your main site already uses `www.iqmath.in` on Cloudflare. Add a **Worker** that proxies `/certificates*` to the Pages project.
 
-1. In the Pages project → **Custom domains** → add `certificates.iqmath.in`
-2. Cloudflare DNS will create the record automatically if the zone is on Cloudflare
-3. **Also change Vite base to `/`** before this works cleanly:
-   - In `ui/vite.config.ts` set `base: "/"`
-   - Update `ui/src/lib/routes.ts` `APP_BASENAME` to `""` or `"/"`
-   - Redeploy Pages
+1. Cloudflare Dashboard → **Workers & Pages** → **Create** → **Worker**
+2. Name: `iqmath-certificates-path`
+3. Paste the code from [`ui/cloudflare-worker-certificates.js`](./ui/cloudflare-worker-certificates.js)
+4. **Deploy**
+5. Worker → **Settings → Domains & Routes → Add route**:
+   - Route: `www.iqmath.in/certificates*`
+   - Zone: `iqmath.in`
+6. Open **https://www.iqmath.in/certificates/login**
 
-Admin: `https://certificates.iqmath.in/login`  
-Verify: `https://certificates.iqmath.in/IQ-FSD-82732`
-
-Then set on Render:
-
-```env
-PUBLIC_SITE_URL=https://certificates.iqmath.in
-CLIENT_URLS=https://certificates.iqmath.in,https://www.iqmath.in
-```
-
-And update verify links accordingly (or keep `PUBLIC_SITE_URL=https://www.iqmath.in` only if you use Option 2).
-
-#### Option 2 — Path `www.iqmath.in/certificates` (matches current code)
-
-Current UI is built with `base: "/certificates/"`. Use a **Worker** so the existing main site stays as-is.
-
-1. Deploy Pages as above (you get `https://iqmath-certificates.pages.dev`)
-2. Create a Worker (e.g. `iqmath-certificates-proxy`) with a route:
-   - `www.iqmath.in/certificates*`
-3. Worker idea: forward `/certificates/...` to your Pages origin, stripping or mapping the path so assets resolve
-4. Keep `VITE_API_URL` pointing at Render
-5. Keep on Render:
+Also ensure Render `CLIENT_URLS` includes:
 
 ```env
-PUBLIC_SITE_URL=https://www.iqmath.in
-CLIENT_URLS=https://www.iqmath.in
+CLIENT_URLS=https://www.iqmath.in,https://certificate-automation.pages.dev
 ```
 
-If path proxying is painful, **Option 1 (subdomain) is recommended**.
+### B3. Optional: custom subdomain instead
+
+If you prefer `https://certificates.iqmath.in` (no Worker):
+
+1. Change Vite `base` to `/` and `outDir` to `dist` (simpler root deploy)
+2. Pages → Custom domains → `certificates.iqmath.in`
+
+Path-based (`www.iqmath.in/certificates`) is what the Worker above enables.
 
 ---
 

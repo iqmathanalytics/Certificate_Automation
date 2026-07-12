@@ -1,1 +1,3 @@
+# Cloudflare Pages — SPA under /certificates
+# Real files in /certificates/assets/* are served first; this covers client routes.
 /certificates/*  /certificates/index.html  200
