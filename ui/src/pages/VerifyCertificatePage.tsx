@@ -112,12 +112,6 @@ export function VerifyCertificatePage() {
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Issued Date</p>
                   <p className="mt-1 text-slate-700">{formatDate(data.certificate.issuedDate)}</p>
                 </div>
-                {data.certificate.batchTitle && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Program</p>
-                    <p className="mt-1 text-slate-700">{data.certificate.batchTitle}</p>
-                  </div>
-                )}
               </div>
 
               {data.certificate.description && (
