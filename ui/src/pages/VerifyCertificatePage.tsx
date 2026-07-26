@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Award, CheckCircle2, ExternalLink, ShieldX } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { dedupeRepeatedBody, parseBoldMarkdown } from "@/lib/rich-text";
 
 type VerifyResponse = {
   valid: boolean;
@@ -23,6 +24,17 @@ function formatDate(iso: string) {
     month: "long",
     day: "numeric",
   });
+}
+
+function RichDescription({ text }: { text: string }) {
+  const segments = parseBoldMarkdown(dedupeRepeatedBody(text));
+  return (
+    <p className="mt-2 text-sm leading-relaxed text-slate-600 whitespace-pre-wrap">
+      {segments.map((seg, i) =>
+        seg.bold ? <strong key={i}>{seg.text}</strong> : <span key={i}>{seg.text}</span>,
+      )}
+    </p>
+  );
 }
 
 export function VerifyCertificatePage() {
@@ -111,7 +123,7 @@ export function VerifyCertificatePage() {
               {data.certificate.description && (
                 <div className="rounded-lg bg-slate-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Description</p>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{data.certificate.description}</p>
+                  <RichDescription text={data.certificate.description} />
                 </div>
               )}
 
