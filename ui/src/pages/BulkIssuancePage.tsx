@@ -45,6 +45,8 @@ export function BulkIssuancePage() {
   const [batches, setBatches] = useState<BatchSummary[]>([]);
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [emailConfigured, setEmailConfigured] = useState(false);
+  const [emailStatusLoaded, setEmailStatusLoaded] = useState(false);
+  const [emailProvider, setEmailProvider] = useState<string | null>(null);
   const [smtpFrom, setSmtpFrom] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -76,7 +78,9 @@ export function BulkIssuancePage() {
     try {
       const data = await api<{ batches: BatchSummary[]; emailConfigured: boolean }>("/api/batches");
       setBatches(data.batches);
-      setEmailConfigured(data.emailConfigured);
+      if (typeof data.emailConfigured === "boolean") {
+        setEmailConfigured(data.emailConfigured);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load batches");
     } finally {
@@ -86,11 +90,18 @@ export function BulkIssuancePage() {
 
   const loadEmailStatus = useCallback(async () => {
     try {
-      const data = await api<{ configured: boolean; fromEmail: string | null }>("/api/email/status");
-      setEmailConfigured(data.configured);
+      const data = await api<{
+        configured: boolean;
+        fromEmail: string | null;
+        provider?: string;
+      }>("/api/email/status");
+      setEmailConfigured(Boolean(data.configured));
       setSmtpFrom(data.fromEmail);
+      setEmailProvider(data.provider ?? null);
     } catch {
-      /* ignore */
+      /* keep last known status */
+    } finally {
+      setEmailStatusLoaded(true);
     }
   }, []);
 
@@ -121,9 +132,11 @@ export function BulkIssuancePage() {
   }, []);
 
   useEffect(() => {
-    loadBatches();
-    loadTemplates();
-    loadEmailStatus();
+    void (async () => {
+      await loadBatches();
+      await loadEmailStatus();
+      await loadTemplates();
+    })();
   }, [loadBatches, loadTemplates, loadEmailStatus]);
 
   useEffect(() => {
@@ -235,13 +248,13 @@ export function BulkIssuancePage() {
         sub="Upload a CSV of student names and emails. Choose a template and certificate ID prefix — numbers auto-increment (e.g. IQ-FSD-82732, IQ-FSD-82733)."
       />
 
-      {!emailConfigured && (
+      {!emailStatusLoaded ? null : !emailConfigured ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           Email is not configured yet. Certificates will still be generated, but emails won&apos;t be sent until
           you set <code className="rounded bg-amber-100 px-1">RESEND_API_KEY</code> on Render (or SMTP locally).
           See <code className="rounded bg-amber-100 px-1">api/SMTP_SETUP.md</code>.
         </div>
-      )}
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-5 rounded-lg border bg-card p-5 shadow-sm">
@@ -411,7 +424,9 @@ export function BulkIssuancePage() {
             <p className="text-sm font-semibold">Email Test</p>
             {emailConfigured ? (
               <p className="text-xs text-emerald-700">
-                Email configured{smtpFrom ? ` — sending from ${smtpFrom}` : ""}.
+                Email configured
+                {emailProvider ? ` via ${emailProvider}` : ""}
+                {smtpFrom ? ` — sending from ${smtpFrom}` : ""}.
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">

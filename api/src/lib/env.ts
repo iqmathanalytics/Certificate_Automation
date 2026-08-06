@@ -11,15 +11,15 @@ export const env = {
   adminEmail: process.env.ADMIN_EMAIL ?? "contact@iqmath.in",
   adminPassword: process.env.ADMIN_PASSWORD ?? "",
   /** Resend HTTPS API — preferred on Render Free (SMTP ports are blocked). */
-  resendApiKey: process.env.RESEND_API_KEY ?? "",
+  resendApiKey: (process.env.RESEND_API_KEY ?? "").trim(),
   smtp: {
-    host: process.env.SMTP_HOST ?? "",
+    host: (process.env.SMTP_HOST ?? "").trim(),
     port: Number(process.env.SMTP_PORT ?? 587),
     secure: process.env.SMTP_SECURE === "true",
-    user: process.env.SMTP_USER ?? "",
-    pass: process.env.SMTP_PASS ?? "",
-    fromName: process.env.SMTP_FROM_NAME ?? "IQmath Technologies",
-    fromEmail: process.env.SMTP_FROM_EMAIL ?? "certificates@iqmath.in",
+    user: (process.env.SMTP_USER ?? "").trim(),
+    pass: (process.env.SMTP_PASS ?? "").trim(),
+    fromName: (process.env.SMTP_FROM_NAME ?? "IQmath Technologies").trim(),
+    fromEmail: (process.env.SMTP_FROM_EMAIL ?? "certificates@iqmath.in").trim(),
   },
 };
 
