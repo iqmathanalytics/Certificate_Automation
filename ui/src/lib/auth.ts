@@ -19,6 +19,35 @@ export function clearAuthSession() {
   localStorage.removeItem(EMAIL_KEY);
 }
 
+/** True if a non-expired token exists in localStorage (signature verified by API). */
 export function isAuthenticated(): boolean {
-  return Boolean(getAuthToken());
+  const token = getAuthToken();
+  if (!token) return false;
+  const exp = readTokenExpiry(token);
+  if (exp !== null && exp < Date.now()) {
+    clearAuthSession();
+    return false;
+  }
+  return true;
+}
+
+function readTokenExpiry(token: string): number | null {
+  try {
+    const [data] = token.split(".");
+    if (!data) return null;
+    const payload = JSON.parse(atob(data.replace(/-/g, "+").replace(/_/g, "/"))) as { exp?: number };
+    return typeof payload.exp === "number" ? payload.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Clear session and send user to login (used on API 401). */
+export function redirectToLogin() {
+  clearAuthSession();
+  const base = (import.meta.env.BASE_URL || "/certificates/").replace(/\/?$/, "/");
+  const loginUrl = `${window.location.origin}${base}login`;
+  if (!window.location.pathname.replace(/\/$/, "").endsWith("/login")) {
+    window.location.assign(loginUrl);
+  }
 }
